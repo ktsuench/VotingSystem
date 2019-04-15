@@ -23,6 +23,7 @@
  */
 package com.hkkt.communication;
 
+import com.hkkt.votingsystem.AbstractServer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -44,14 +45,18 @@ public class Connection implements Runnable {
   private final AtomicBoolean LISTENING;
   private final AtomicInteger TYPE;
   private String name;
+  private final ServerConnectionManager manager;
+  private final AbstractServer server;
 
-  public Connection(String name) {
+  public Connection(String name, ServerConnectionManager manager, AbstractServer server) {
     this.CREATED = new AtomicBoolean(false);
     this.CONNECTED = new AtomicBoolean(false);
     this.LISTENING = new AtomicBoolean(false);
     this.ACTIVE = new AtomicBoolean(false);
     this.TYPE = new AtomicInteger(TASK_TYPE.AVAILABLE.ordinal());
     this.name = name;
+    this.manager = manager;
+    this.server = server;
   }
 
   public String getName() {
@@ -83,7 +88,6 @@ public class Connection implements Runnable {
     this.ACTIVE.set(true);
 
     try {
-      ServerConnectionManager manager = ServerConnectionManager.getInstance();
       SocketChannel channel = manager.getChannel(this.name);
       ByteBuffer buffer = ByteBuffer.allocate(1024);
       ArrayList<Datagram> list;
@@ -101,6 +105,8 @@ public class Connection implements Runnable {
         if (data.getReceiver().equals(ServerConnectionManager.SERVER_NAME)) {
           if (data.getType() == Datagram.DATA_TYPE.UPDATE_ID)
             manager.updateChannelId(name, data.getSender());
+          else
+            server.handleDatagram(data);
         } else {
           // add to queue
           manager.addDatagramToQueue(data.getReceiver(), data);
@@ -122,7 +128,7 @@ public class Connection implements Runnable {
       }
 
       this.setTaskType(TASK_TYPE.AVAILABLE);
-    } catch (ChannelSelectorCannotStartException | IOException ex) {
+    } catch (IOException ex) {
       LOG.log(Level.SEVERE, null, ex);
       this.ACTIVE.set(false);
     }

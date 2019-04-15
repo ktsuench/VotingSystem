@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2019 Nailah Azeez, Jaskiran Lamba, Sandeep Suri, Kent Tsuenchy
+ * Copyright (c) 2019 Hassan Khan, Kent Tsuenchy
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 package com.hkkt.communication;
 
+import com.hkkt.votingsystem.AbstractServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
@@ -42,163 +43,137 @@ public class ServerConnectionManager {
   public static final String SERVER_NAME = "SERVER";
   private static final String DEFAULT_CHANNEL = "Default_Channel_Name";
   private static final Logger LOG = Logger.getLogger(ServerConnectionManager.class.getName());
-  private static HashMap<String, SocketChannel> channels;
-  private static HashMap<String, Connection> connections;
-  private static HashMap<String, ArrayList<Datagram>> datagrams;
-  private static int defaultChannelId = 0;
-  private static ServerConnectionManager manager = null;
-  private static Selector selector;
-  private static ServerSocketChannel server = null;
-  private static TaskHandler taskHandler;
+  private HashMap<String, SocketChannel> channels;
+  private HashMap<String, Connection> connections;
+  private HashMap<String, ArrayList<Datagram>> datagrams;
+  private int defaultChannelId = 0;
+  private Selector selector;
+  private ServerSocketChannel server = null;
+  private TaskHandler taskHandler;
 
-  public static ServerConnectionManager getInstance() throws ChannelSelectorCannotStartException {
-    if (manager == null)
-      manager = new ServerConnectionManager();
+  public ServerConnectionManager(int port, AbstractServer root) throws ChannelSelectorCannotStartException {
+    this.channels = new HashMap<>();
+    this.connections = new HashMap<>();
+    this.datagrams = new HashMap<>();
+    this.taskHandler = new TaskHandler();
 
-    return manager;
-  }
+    try {
+      this.selector = Selector.open();
+    } catch (IOException ex) {
+      LOG.log(Level.SEVERE, null, ex);
 
-  private static String getNextChannelName() {
-    String name = "";
-
-    if (manager != null) {
-      defaultChannelId = 0;
-
-      do {
-        name = DEFAULT_CHANNEL + "[" + defaultChannelId + "]";
-        defaultChannelId++; // may cause overflow if max reached
-
-      } while (channels.containsKey(name));
+      throw new ChannelSelectorCannotStartException("Failed to start up conneciton.");
     }
 
-    return name;
-  }
+    Runnable selectorTask = () -> {
+      // TODO need to check how to kill thread if required to force quit
+      while (true)
+        try {
+          Thread.sleep(200);
 
-  private ServerConnectionManager() throws ChannelSelectorCannotStartException {
-    if (manager == null) {
-      channels = new HashMap<>();
-      connections = new HashMap<>();
-      datagrams = new HashMap<>();
-      taskHandler = new TaskHandler();
+          int readyChannels = this.selector.selectNow();
 
-      try {
-        selector = Selector.open();
-      } catch (IOException ex) {
-        LOG.log(Level.SEVERE, null, ex);
+          if (readyChannels == 0)
+            continue;
 
-        throw new ChannelSelectorCannotStartException("Failed to start up conneciton.");
-      }
+          Set<SelectionKey> selectedKeys = this.selector.selectedKeys();
+          Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
 
-      Runnable selectorTask = () -> {
+          while (keyIterator.hasNext()) {
+            SelectionKey key = keyIterator.next();
+            Connection connection;
+            boolean startTask = true;
+
+            if (key.attachment() instanceof Connection)
+              connection = (Connection) key.attachment();
+            else {
+              LOG.log(Level.WARNING, "Unrecognized attachment for channel.");
+              continue;
+            }
+
+            if ((key.isReadable() || key.isWritable()) && connection.getTaskType() == Connection.TASK_TYPE.AVAILABLE) {
+              if (key.isReadable())
+                connection.setTaskType(Connection.TASK_TYPE.READ);
+              else if (key.isWritable())
+                connection.setTaskType(Connection.TASK_TYPE.WRITE);
+            } else
+              startTask = false;
+            // TODO log this to log file
+            // LOG.log(Level.WARNING, "Unknown event fired for a channel found in selector.");
+
+            if (startTask)
+              this.taskHandler.startTask(connection);
+
+            keyIterator.remove();
+          }
+        } catch (IOException ex) {
+          // TODO log this to log file
+          LOG.log(Level.SEVERE, null, ex);
+        } catch (InterruptedException ex) {
+          break;
+        }
+    };
+
+    try {
+      this.server = ServerSocketChannel.open();
+      this.server.socket().bind(new InetSocketAddress("localhost", port));
+      this.server.configureBlocking(true);
+
+      Runnable startListening = () -> {
         // TODO need to check how to kill thread if required to force quit
         while (true)
           try {
-            Thread.sleep(200);
+            SocketChannel channel = server.accept();
+            String name;
 
-            int readyChannels = selector.selectNow();
-
-            if (readyChannels == 0)
+            if (channel == null)
               continue;
 
-            Set<SelectionKey> selectedKeys = selector.selectedKeys();
-            Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
+            channel.configureBlocking(false);
+            name = getNextChannelName();
 
-            while (keyIterator.hasNext()) {
-              SelectionKey key = keyIterator.next();
-              Connection connection;
-              boolean startTask = true;
+            Connection connection = new Connection(name, this, root);
 
-              if (key.attachment() instanceof Connection)
-                connection = (Connection) key.attachment();
-              else {
-                LOG.log(Level.WARNING, "Unrecognized attachment for channel.");
-                continue;
-              }
+            while (channel.isConnectionPending())
+              // do nothing for now, later on do set up if there is any
+              channel.finishConnect();
 
-              if ((key.isReadable() || key.isWritable()) && connection.getTaskType() == Connection.TASK_TYPE.AVAILABLE) {
-                if (key.isReadable())
-                  connection.setTaskType(Connection.TASK_TYPE.READ);
-                else if (key.isWritable())
-                  connection.setTaskType(Connection.TASK_TYPE.WRITE);
-              } else
-                startTask = false;
-              // TODO log this to log file
-              // LOG.log(Level.WARNING, "Unknown event fired for a channel found in selector.");
+            connection.toggleConnected();
 
-              if (startTask)
-                taskHandler.startTask(connection);
+            // register channel with selector to notify for the specified ready events
+            channel.register(this.selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, connection);
+            connection.toggleListening();
 
-              keyIterator.remove();
-            }
-          } catch (IOException ex) {
-            // TODO log this to log file
-            LOG.log(Level.SEVERE, null, ex);
-          } catch (InterruptedException ex) {
+            // add to map for clean up later
+            this.channels.put(name, channel);
+            this.connections.put(name, connection);
+          } catch (ClosedChannelException ex) {
             break;
+          } catch (IOException ex) {
+            LOG.log(Level.SEVERE, null, ex);
+
+            /*
+             * if (!connection.isCreated()) throw new ConnectException("Failed to open socket channel"); else if
+             * (!connection.isConnected()) throw new ConnectException("Failed to connect to " +
+             * socketChannel.getRemoteAddress().toString()); else if (!connection.isListening()) throw new
+             * ConnectException("Failed to register socket channel for listening");
+             */
           }
       };
 
-      try {
-        server = ServerSocketChannel.open();
-        server.socket().bind(new InetSocketAddress("localhost", 6000));
-        server.configureBlocking(true);
-
-        Runnable startListening = () -> {
-          // TODO need to check how to kill thread if required to force quit
-          while (true)
-            try {
-              SocketChannel channel = server.accept();
-              String name;
-
-              if (channel == null)
-                continue;
-
-              channel.configureBlocking(false);
-              name = getNextChannelName();
-
-              Connection connection = new Connection(name);
-
-              while (channel.isConnectionPending())
-                // do nothing for now, later on do set up if there is any
-                channel.finishConnect();
-
-              connection.toggleConnected();
-
-              // register channel with selector to notify for the specified ready events
-              channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, connection);
-              connection.toggleListening();
-
-              // add to map for clean up later
-              channels.put(name, channel);
-              connections.put(name, connection);
-            } catch (ClosedChannelException ex) {
-              break;
-            } catch (IOException ex) {
-              LOG.log(Level.SEVERE, null, ex);
-
-              /*
-               * if (!connection.isCreated()) throw new ConnectException("Failed to open socket channel"); else if
-               * (!connection.isConnected()) throw new ConnectException("Failed to connect to " +
-               * socketChannel.getRemoteAddress().toString()); else if (!connection.isListening()) throw new
-               * ConnectException("Failed to register socket channel for listening");
-               */
-            }
-        };
-
-        taskHandler.startTask(startListening);
-        taskHandler.startTask(selectorTask);
-      } catch (IOException ex) {
-        LOG.log(Level.SEVERE, null, ex);
-      }
+      this.taskHandler.startTask(startListening);
+      this.taskHandler.startTask(selectorTask);
+    } catch (IOException ex) {
+      LOG.log(Level.SEVERE, null, ex);
     }
   }
 
   public void addDatagramToQueue(String name, Datagram data) {
-    ArrayList<Datagram> list = datagrams.get(name);
+    ArrayList<Datagram> list = this.datagrams.get(name);
 
     if (list == null) {
       list = new ArrayList<>();
-      datagrams.put(name, list);
+      this.datagrams.put(name, list);
     }
 
     list.add(data);
@@ -211,51 +186,47 @@ public class ServerConnectionManager {
    * operation.
    */
   public void cleanup() {
-    if (manager != null) {
-      taskHandler.cleanup();
-      channels.forEach((taskName, channel) -> {
-        try {
-          // may return null if no key found for given selector
-          SelectionKey key = channel.keyFor(selector);
-
-          // deregister the channel from the selector
-          if (key != null)
-            key.cancel();
-
-          channel.close();
-        } catch (IOException ex) {
-          // TODO log this to log file
-          LOG.log(Level.WARNING, null, ex);
-        }
-      });
-      connections.clear();
-      datagrams.clear();
-
+    this.taskHandler.cleanup();
+    this.channels.forEach((taskName, channel) -> {
       try {
-        selector.close();
+        // may return null if no key found for given selector
+        SelectionKey key = channel.keyFor(this.selector);
+
+        // deregister the channel from the selector
+        if (key != null)
+          key.cancel();
+
+        channel.close();
       } catch (IOException ex) {
         // TODO log this to log file
         LOG.log(Level.WARNING, null, ex);
       }
+    });
+    this.connections.clear();
+    this.datagrams.clear();
 
-      manager = null;
+    try {
+      this.selector.close();
+    } catch (IOException ex) {
+      // TODO log this to log file
+      LOG.log(Level.WARNING, null, ex);
     }
   }
 
   public void clearDatagramFromQueue(String name) {
-    datagrams.remove(name);
+    this.datagrams.remove(name);
   }
 
   public SocketChannel getChannel(String name) {
-    return channels.get(name);
+    return this.channels.get(name);
   }
 
   public ArrayList<Datagram> getDatagrams(String name) {
-    return datagrams.get(name);
+    return this.datagrams.get(name);
   }
 
   public void removeDatagramFromQueue(String name, Datagram data) {
-    ArrayList<Datagram> list = datagrams.get(name);
+    ArrayList<Datagram> list = this.datagrams.get(name);
 
     if (list != null)
       list.remove(data);
@@ -272,29 +243,40 @@ public class ServerConnectionManager {
     if (newName.length() > MAX_NAME_LENGTH)
       return false;
 
-    if (channels.containsKey(oldName) && !channels.containsKey(newName)) {
-      SocketChannel channel = channels.get(oldName);
-      Connection connection = connections.get(oldName);
-      ArrayList<Datagram> datagramQueue = datagrams.get(oldName);
+    if (this.channels.containsKey(oldName) && !this.channels.containsKey(newName)) {
+      SocketChannel channel = this.channels.get(oldName);
+      Connection connection = this.connections.get(oldName);
+      ArrayList<Datagram> datagramQueue = this.datagrams.get(oldName);
 
-      channels.remove(oldName);
-      channels.put(newName, channel);
+      this.channels.remove(oldName);
+      this.channels.put(newName, channel);
 
       if (connection != null) {
-        connections.remove(oldName);
-        connections.put(newName, connection);
+        this.connections.remove(oldName);
+        this.connections.put(newName, connection);
 
         connection.setName(newName);
       }
 
       if (datagramQueue != null) {
-        datagrams.remove(oldName);
-        datagrams.put(newName, datagramQueue);
+        this.datagrams.remove(oldName);
+        this.datagrams.put(newName, datagramQueue);
       }
 
       return true;
     }
 
     return false;
+  }
+
+  private String getNextChannelName() {
+    String name = "";
+
+    do {
+      name = DEFAULT_CHANNEL + "[" + this.defaultChannelId + "]";
+      this.defaultChannelId++; // may cause overflow if max reached
+    } while (this.channels.containsKey(name));
+
+    return name;
   }
 }

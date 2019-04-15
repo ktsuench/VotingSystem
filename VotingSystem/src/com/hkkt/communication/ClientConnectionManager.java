@@ -23,6 +23,8 @@
  */
 package com.hkkt.communication;
 
+import com.hkkt.util.DataObservable;
+import com.hkkt.util.Hook;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -42,8 +44,8 @@ import java.util.logging.Logger;
 public class ClientConnectionManager {
   private static final Logger LOG = Logger.getLogger(ClientConnectionManager.class.getName());
   private final SocketChannel CHANNEL;
+  private final DataObservable HOOKS;
   private final String NAME;
-  private final ArrayList<Datagram> RECEIVE_DATAGRAMS;
   private final Selector SELECTOR;
   private final ArrayList<Datagram> SEND_DATAGRAMS;
   private final TaskHandler TASK_HANDLER;
@@ -53,14 +55,15 @@ public class ClientConnectionManager {
   /**
    *
    * @param name should be less than 40 characters
-   * <p>
+   * @param port
+   *
    * @throws IOException
    * @throws com.hkkt.communication.ChannelSelectorCannotStartException
    */
-  public ClientConnectionManager(String name) throws IOException, ChannelSelectorCannotStartException {
-    this.TASK_HANDLER = new TaskHandler();
+  public ClientConnectionManager(String name, int port) throws IOException, ChannelSelectorCannotStartException {
+    this.HOOKS = new DataObservable();
     this.SEND_DATAGRAMS = new ArrayList<>();
-    this.RECEIVE_DATAGRAMS = new ArrayList<>();
+    this.TASK_HANDLER = new TaskHandler();
     this.channelActive = false;
     this.die = false;
 
@@ -102,11 +105,9 @@ public class ClientConnectionManager {
               if (key.isReadable()) {
                 this.CHANNEL.read(buffer);
                 buffer.flip();
-                // if (this.client != null && buffer.array().length > 0) {
-                  // Datagram d = Datagram.fromBytes(buffer.array());
-                  // this.client.updateMessageList(d.getSender(), d.getData());
-                // } else
-                  this.RECEIVE_DATAGRAMS.add(Datagram.fromBytes(buffer.array()));
+
+                if (this.HOOKS.countObservers() > 0)
+                  this.HOOKS.updateObservers(Datagram.fromBytes(buffer.array()));
               } else if (key.isWritable() && this.SEND_DATAGRAMS.size() > 0) {
                 buffer.put(this.SEND_DATAGRAMS.remove(0).getBytes());
                 buffer.flip();
@@ -130,7 +131,7 @@ public class ClientConnectionManager {
     this.SEND_DATAGRAMS.add(new Datagram(Datagram.DATA_TYPE.UPDATE_ID, name, ServerConnectionManager.SERVER_NAME, name));
 
     this.CHANNEL.configureBlocking(false);
-    this.CHANNEL.connect(new InetSocketAddress("localhost", 6000));
+    this.CHANNEL.connect(new InetSocketAddress("localhost", port));
 
     while (this.CHANNEL.isConnectionPending())
       // do nothing for now, later on do set up if there is any
@@ -139,15 +140,31 @@ public class ClientConnectionManager {
     this.CHANNEL.register(this.SELECTOR, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
   }
 
+  public void addHook(Hook hook) {
+    this.HOOKS.addObserver((hooks, data) -> {
+      hook.setHookData(data);
+      hook.run();
+    });
+  }
+
   public void cleanup() {
     this.TASK_HANDLER.cleanup();
     this.die = true;
+    // TODO notify observers that client is closing
+    this.HOOKS.deleteObservers();
+  }
+
+  public void removeHook(Hook hook) {
+    this.HOOKS.deleteObserver((hooks, data) -> {
+      hook.setHookData(data);
+      hook.run();
+    });
   }
 
   /**
    *
    * @param recipient should be less than 40 characters
-   * @param message   should be less than 120 characters
+   * @param message should be less than 120 characters
    */
   public void sendMessage(String recipient, String message) {
     ByteBuffer buffer = ByteBuffer.allocate(1024);
