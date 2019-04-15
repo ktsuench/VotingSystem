@@ -50,6 +50,10 @@ public class CTF extends AbstractServer {
 
   @Override
   public void handleDatagram(Datagram datagram) {
-    System.out.println(datagram.getData());
+    System.out.println(this.name + " received message from " + datagram.getSender() + ": " + datagram.getData());
+
+    Datagram echo = new Datagram(Datagram.DATA_TYPE.MESSAGE, this.name, datagram.getSender(), datagram.getData());
+
+    this.serverManager.addDatagramToQueue(datagram.getSender(), echo);
   }
 }

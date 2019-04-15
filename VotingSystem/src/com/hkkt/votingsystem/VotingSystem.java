@@ -55,8 +55,7 @@ public class VotingSystem {
 
       @Override
       public void run() {
-        System.out.println(data.getData());
-        System.out.println(data.getSender());
+        System.out.println("voter received message from " + this.data.getSender() + ": " + this.data.getData());
       }
     };
 
@@ -67,7 +66,9 @@ public class VotingSystem {
     ClientConnectionManager ctfConn = new ClientConnectionManager("voter", 6000);
 
     claConn.addHook(echoHook);
+    ctfConn.addHook(echoHook);
 
-    claConn.sendMessage("SERVER", "Test");
+    claConn.sendMessage("SERVER", "HELLO CLA");
+    ctfConn.sendMessage("SERVER", "HELLO CTF");
   }
 }
