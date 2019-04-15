@@ -70,5 +70,7 @@ public class VotingSystem {
 
     claConn.sendMessage("SERVER", "HELLO CLA");
     ctfConn.sendMessage("SERVER", "HELLO CTF");
+
+    claConn.removeHook(echoHook);
   }
 }
