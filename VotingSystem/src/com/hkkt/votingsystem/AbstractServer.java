@@ -23,51 +23,12 @@
  */
 package com.hkkt.votingsystem;
 
-import com.hkkt.CentralLegitimizationAgency.CLA;
-import com.hkkt.CentralTabulationFacility.CTF;
-import com.hkkt.communication.ChannelSelectorCannotStartException;
-import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
-import com.hkkt.util.Hook;
-import java.io.IOException;
 
 /**
  *
- * @author Hassan Khan
+ * @author Kent Tsuenchy
  */
-public class VotingSystem {
-
-  /**
-   * @param args the command line arguments
-   */
-  public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException {
-    // TODO code application logic here
-    CLA cla = new CLA("cla");
-    CTF ctf = new CTF("ctf");
-    Hook echoHook = new Hook() {
-      private Datagram data;
-
-      @Override
-      public void setHookData(Object data) {
-        if (data instanceof Datagram)
-          this.data = (Datagram) data;
-      }
-
-      @Override
-      public void run() {
-        System.out.println(data.getData());
-        System.out.println(data.getSender());
-      }
-    };
-
-    cla.connectToCTF();
-    ctf.connectToCLA();
-
-    ClientConnectionManager claConn = new ClientConnectionManager("voter", 5000);
-    ClientConnectionManager ctfConn = new ClientConnectionManager("voter", 6000);
-
-    claConn.addHook(echoHook);
-
-    claConn.sendMessage("SERVER", "Test");
-  }
+public abstract class AbstractServer {
+  public abstract void handleDatagram(Datagram datagram);
 }
