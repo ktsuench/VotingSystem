@@ -32,7 +32,9 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Observer;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -45,6 +47,7 @@ public class ClientConnectionManager {
   private static final Logger LOG = Logger.getLogger(ClientConnectionManager.class.getName());
   private final SocketChannel CHANNEL;
   private final DataObservable HOOKS;
+  private final HashMap<Hook, Observer> HOOKS_LIST;
   private final String NAME;
   private final Selector SELECTOR;
   private final ArrayList<Datagram> SEND_DATAGRAMS;
@@ -62,6 +65,7 @@ public class ClientConnectionManager {
    */
   public ClientConnectionManager(String name, int port) throws IOException, ChannelSelectorCannotStartException {
     this.HOOKS = new DataObservable();
+    this.HOOKS_LIST = new HashMap<>();
     this.SEND_DATAGRAMS = new ArrayList<>();
     this.TASK_HANDLER = new TaskHandler();
     this.channelActive = false;
@@ -141,10 +145,12 @@ public class ClientConnectionManager {
   }
 
   public void addHook(Hook hook) {
-    this.HOOKS.addObserver((hooks, data) -> {
+    Observer o = (hooks, data) -> {
       hook.setHookData(data);
       hook.run();
-    });
+    };
+    this.HOOKS_LIST.put(hook, o);
+    this.HOOKS.addObserver(o);
   }
 
   public void cleanup() {
@@ -155,10 +161,7 @@ public class ClientConnectionManager {
   }
 
   public void removeHook(Hook hook) {
-    this.HOOKS.deleteObserver((hooks, data) -> {
-      hook.setHookData(data);
-      hook.run();
-    });
+    this.HOOKS.deleteObserver(this.HOOKS_LIST.get(hook));
   }
 
   /**
