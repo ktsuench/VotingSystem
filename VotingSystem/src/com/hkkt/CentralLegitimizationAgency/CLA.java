@@ -29,15 +29,18 @@ import com.hkkt.communication.Datagram;
 import com.hkkt.communication.ServerConnectionManager;
 import com.hkkt.votingsystem.AbstractServer;
 import java.io.IOException;
+import java.util.HashMap;
 
 /**
  *
  * @author Hassan Khan
  */
 public class CLA extends AbstractServer {
+  private static final long VALIDATION_NUM_LIMIT = Long.MAX_VALUE;
   private ClientConnectionManager clientManager;
   private final String name;
   private final ServerConnectionManager serverManager;
+  private final HashMap<String, Long> validationTickets;
 
   /**
    * Constructs a Central Legitimization Agency
@@ -50,6 +53,7 @@ public class CLA extends AbstractServer {
   public CLA(String name, int port) throws ChannelSelectorCannotStartException, IOException {
     this.serverManager = new ServerConnectionManager(port, this);
     this.name = name;
+    this.validationTickets = new HashMap<>();
   }
 
   /**
@@ -61,6 +65,22 @@ public class CLA extends AbstractServer {
    */
   public void connectToCTF(int port) throws ChannelSelectorCannotStartException, IOException {
     this.clientManager = new ClientConnectionManager(this.name, port);
+  }
+
+  /**
+   * Generate a new validation ticket for a voter
+   *
+   * @param voter id
+   * @return validation ticket if voter not registered, otherwise -1
+   */
+  public long generateValidationTicket(String voter) {
+    long validationTicket = (long) (Math.random() * VALIDATION_NUM_LIMIT);
+    boolean alreadyRegistered = this.validationTickets.containsKey(voter);
+
+    if (!alreadyRegistered)
+      this.validationTickets.put(voter, validationTicket);
+
+    return alreadyRegistered ? -1 : validationTicket;
   }
 
   /**
