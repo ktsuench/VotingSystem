@@ -131,6 +131,8 @@ public class Connection implements Runnable {
     } catch (IOException ex) {
       LOG.log(Level.SEVERE, null, ex);
       this.ACTIVE.set(false);
+    } catch (DatagramMissingSenderReceiverException ex) {
+      LOG.log(Level.SEVERE, null, ex);
     }
 
     this.ACTIVE.set(false);

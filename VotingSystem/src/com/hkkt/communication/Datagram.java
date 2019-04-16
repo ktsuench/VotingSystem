@@ -33,11 +33,11 @@ import java.util.Objects;
  */
 public class Datagram {
   public static final String STRING_ENCODING = "ISO-8859-1";
-  private static final int MAX_DATA_LENGTH = 120;
-  private static final int MAX_TIMESTAMP_LENGTH = 24;
-  private static final int MAX_TYPE_LENGTH = 15;
+  protected static final int MAX_DATA_LENGTH = 120;
+  protected static final int MAX_TIMESTAMP_LENGTH = 24;
+  protected static final int MAX_TYPE_LENGTH = 15;
 
-  public static Datagram fromBytes(byte[] bytes) throws UnsupportedEncodingException {
+  public static Datagram fromBytes(byte[] bytes) throws UnsupportedEncodingException, DatagramMissingSenderReceiverException {
     int pad = ServerConnectionManager.MAX_NAME_LENGTH;
     String temp = new String(bytes, STRING_ENCODING);
     String sender;
@@ -54,25 +54,31 @@ public class Datagram {
     pad += MAX_TIMESTAMP_LENGTH;
     data = temp.substring(pad).trim();
 
-    return new Datagram(type, sender, receiver, data, timestamp);
   }
 
-  private final String DATA;
-  private final String RECEIVER_ID;
-  private final String SENDER_ID;
-  private final Instant TIMESTAMP;
-  private final DATA_TYPE TYPE;
+  protected final String DATA;
+  protected final String RECEIVER_ID;
+  protected final String SENDER_ID;
+  protected final Instant TIMESTAMP;
+  protected final DATA_TYPE TYPE;
 
-  public Datagram(DATA_TYPE type, String sender, String receiver, String data, Instant timestamp) {
+  public Datagram(DATA_TYPE type, String sender, String receiver, String data, Instant timestamp) throws DatagramMissingSenderReceiverException {
+    if (sender == null || receiver == null)
+      throw new DatagramMissingSenderReceiverException();
+
     this.TYPE = type;
     this.SENDER_ID = sender;
     this.RECEIVER_ID = receiver;
-    this.DATA = data;
+    this.DATA = data == null ? "" : data;
     this.TIMESTAMP = timestamp;
   }
 
-  public Datagram(DATA_TYPE type, String sender, String receiver, String data) {
+  public Datagram(DATA_TYPE type, String sender, String receiver, String data) throws DatagramMissingSenderReceiverException {
     this(type, sender, receiver, data, Instant.now());
+  }
+
+  public Datagram(DATA_TYPE type, String sender, String receiver) throws DatagramMissingSenderReceiverException {
+    this(type, null, sender, receiver, null, Instant.now());
   }
 
   @Override

@@ -28,6 +28,7 @@ import com.hkkt.CentralTabulationFacility.CTF;
 import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
+import com.hkkt.communication.DatagramMissingSenderReceiverException;
 import com.hkkt.util.Hook;
 import java.io.IOException;
 
@@ -40,9 +41,10 @@ public class VotingSystem {
   /**
    * @param args the command line arguments
    */
-  public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException {
+  public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
     // TODO code application logic here
     int claPort = 5000, ctfPort = 6000;
+    String voterId = "voter";
     CLA cla = new CLA("cla", claPort);
     CTF ctf = new CTF("ctf", ctfPort);
     Hook echoHook = new Hook() {
@@ -63,14 +65,14 @@ public class VotingSystem {
     cla.connectToCTF(ctfPort);
     ctf.connectToCLA(claPort);
 
-    ClientConnectionManager claConn = new ClientConnectionManager("voter", claPort);
-    ClientConnectionManager ctfConn = new ClientConnectionManager("voter", ctfPort);
+    ClientConnectionManager claConn = new ClientConnectionManager(voterId, claPort);
+    ClientConnectionManager ctfConn = new ClientConnectionManager(voterId, ctfPort);
 
     claConn.addHook(echoHook);
     ctfConn.addHook(echoHook);
 
-    claConn.sendMessage("SERVER", "HELLO CLA");
-    ctfConn.sendMessage("SERVER", "HELLO CTF");
+    claConn.sendMessage("HELLO CLA");
+    ctfConn.sendMessage("HELLO CTF");
 
     claConn.removeHook(echoHook);
   }

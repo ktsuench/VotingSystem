@@ -26,9 +26,12 @@ package com.hkkt.CentralTabulationFacility;
 import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
+import com.hkkt.communication.DatagramMissingSenderReceiverException;
 import com.hkkt.communication.ServerConnectionManager;
 import com.hkkt.votingsystem.AbstractServer;
 import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -58,8 +61,9 @@ public class CTF extends AbstractServer {
    * @param port the port that the CLA is listening on
    * @throws ChannelSelectorCannotStartException
    * @throws IOException
+   * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
-  public void connectToCLA(int port) throws ChannelSelectorCannotStartException, IOException {
+  public void connectToCLA(int port) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException {
     this.clientManager = new ClientConnectionManager(this.name, 5000);
   }
 
@@ -72,8 +76,11 @@ public class CTF extends AbstractServer {
   public void handleDatagram(Datagram datagram) {
     System.out.println(this.name + " received message from " + datagram.getSender() + ": " + datagram.getData());
 
-    Datagram echo = new Datagram(Datagram.DATA_TYPE.MESSAGE, this.name, datagram.getSender(), datagram.getData());
-
-    this.serverManager.addDatagramToQueue(datagram.getSender(), echo);
+    try {
+      Datagram echo = new Datagram(Datagram.DATA_TYPE.MESSAGE, this.name, datagram.getSender(), datagram.getData());
+      this.serverManager.addDatagramToQueue(datagram.getSender(), echo);
+    } catch (DatagramMissingSenderReceiverException ex) {
+      Logger.getLogger(CTF.class.getName()).log(Level.SEVERE, null, ex);
+    }
   }
 }

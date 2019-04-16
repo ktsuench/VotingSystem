@@ -62,8 +62,9 @@ public class ClientConnectionManager {
    *
    * @throws IOException
    * @throws com.hkkt.communication.ChannelSelectorCannotStartException
+   * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
-  public ClientConnectionManager(String name, int port) throws IOException, ChannelSelectorCannotStartException {
+  public ClientConnectionManager(String name, int port) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
     this.HOOKS = new DataObservable();
     this.HOOKS_LIST = new HashMap<>();
     this.SEND_DATAGRAMS = new ArrayList<>();
@@ -122,7 +123,7 @@ public class ClientConnectionManager {
             keyIterator.remove();
             this.channelActive = false; // may cause issues if more than one channel is being used
           }
-        } catch (IOException ex) {
+        } catch (IOException | DatagramMissingSenderReceiverException ex) {
           // TODO log this to log file
           LOG.log(Level.SEVERE, null, ex);
         } catch (InterruptedException ex) {
@@ -165,12 +166,13 @@ public class ClientConnectionManager {
   }
 
   /**
+   * Send message to the designated recipient
    *
    * @param recipient should be less than 40 characters
    * @param message should be less than 120 characters
+   * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
-  public void sendMessage(String recipient, String message) {
-    ByteBuffer buffer = ByteBuffer.allocate(1024);
+  public void sendMessage(String recipient, String message) throws DatagramMissingSenderReceiverException {
     Datagram datagram = new Datagram(Datagram.DATA_TYPE.MESSAGE, NAME, recipient, message);
 
     this.SEND_DATAGRAMS.add(datagram);
