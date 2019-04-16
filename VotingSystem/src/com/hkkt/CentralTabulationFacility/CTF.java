@@ -35,19 +35,39 @@ import java.io.IOException;
  * @author Hassan Khan
  */
 public class CTF extends AbstractServer {
-  private final ServerConnectionManager serverManager;
   private ClientConnectionManager clientManager;
   private final String name;
+  private final ServerConnectionManager serverManager;
 
-  public CTF(String name) throws ChannelSelectorCannotStartException, IOException {
-    this.serverManager = new ServerConnectionManager(6000, this);
+  /**
+   * Constructs a Central Tabulation Facility
+   *
+   * @param name CTF unique id
+   * @param port the port that the CTF is listening on
+   * @throws ChannelSelectorCannotStartException
+   * @throws IOException
+   */
+  public CTF(String name, int port) throws ChannelSelectorCannotStartException, IOException {
+    this.serverManager = new ServerConnectionManager(port, this);
     this.name = name;
   }
 
-  public void connectToCLA() throws ChannelSelectorCannotStartException, IOException {
-    this.clientManager = new ClientConnectionManager("CTF", 5000);
+  /**
+   * Connect to the Central Legitimization
+   *
+   * @param port the port that the CLA is listening on
+   * @throws ChannelSelectorCannotStartException
+   * @throws IOException
+   */
+  public void connectToCLA(int port) throws ChannelSelectorCannotStartException, IOException {
+    this.clientManager = new ClientConnectionManager(this.name, 5000);
   }
 
+  /**
+   * Method for CTF to handle incoming data
+   *
+   * @param datagram data that has been sent to the CTF
+   */
   @Override
   public void handleDatagram(Datagram datagram) {
     System.out.println(this.name + " received message from " + datagram.getSender() + ": " + datagram.getData());

@@ -35,19 +35,39 @@ import java.io.IOException;
  * @author Hassan Khan
  */
 public class CLA extends AbstractServer {
-  private final ServerConnectionManager serverManager;
   private ClientConnectionManager clientManager;
   private final String name;
+  private final ServerConnectionManager serverManager;
 
-  public CLA(String name) throws ChannelSelectorCannotStartException, IOException {
-    this.serverManager = new ServerConnectionManager(5000, this);
+  /**
+   * Constructs a Central Legitimization Agency
+   *
+   * @param name CLA unique id
+   * @param port the port that the CLA is listening on
+   * @throws ChannelSelectorCannotStartException
+   * @throws IOException
+   */
+  public CLA(String name, int port) throws ChannelSelectorCannotStartException, IOException {
+    this.serverManager = new ServerConnectionManager(port, this);
     this.name = name;
   }
 
-  public void connectToCTF() throws ChannelSelectorCannotStartException, IOException {
-    this.clientManager = new ClientConnectionManager("CLA", 6000);
+  /**
+   * Connect to the Central Tabulation Facility
+   *
+   * @param port the port that the CTF is listening on
+   * @throws ChannelSelectorCannotStartException
+   * @throws IOException
+   */
+  public void connectToCTF(int port) throws ChannelSelectorCannotStartException, IOException {
+    this.clientManager = new ClientConnectionManager(this.name, port);
   }
 
+  /**
+   * Method for CLA to handle incoming data
+   *
+   * @param datagram data that has been sent to the CLA
+   */
   @Override
   public void handleDatagram(Datagram datagram) {
     System.out.println(this.name + " received message from " + datagram.getSender() + ": " + datagram.getData());

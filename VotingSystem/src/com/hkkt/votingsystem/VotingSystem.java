@@ -42,8 +42,9 @@ public class VotingSystem {
    */
   public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException {
     // TODO code application logic here
-    CLA cla = new CLA("cla");
-    CTF ctf = new CTF("ctf");
+    int claPort = 5000, ctfPort = 6000;
+    CLA cla = new CLA("cla", claPort);
+    CTF ctf = new CTF("ctf", ctfPort);
     Hook echoHook = new Hook() {
       private Datagram data;
 
@@ -59,11 +60,11 @@ public class VotingSystem {
       }
     };
 
-    cla.connectToCTF();
-    ctf.connectToCLA();
+    cla.connectToCTF(ctfPort);
+    ctf.connectToCLA(claPort);
 
-    ClientConnectionManager claConn = new ClientConnectionManager("voter", 5000);
-    ClientConnectionManager ctfConn = new ClientConnectionManager("voter", 6000);
+    ClientConnectionManager claConn = new ClientConnectionManager("voter", claPort);
+    ClientConnectionManager ctfConn = new ClientConnectionManager("voter", ctfPort);
 
     claConn.addHook(echoHook);
     ctfConn.addHook(echoHook);
