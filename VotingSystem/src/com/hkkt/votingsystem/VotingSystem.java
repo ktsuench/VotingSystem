@@ -74,6 +74,8 @@ public class VotingSystem {
     claConn.sendMessage("HELLO CLA");
     ctfConn.sendMessage("HELLO CTF");
 
+    claConn.sendRequest(VotingSystemDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString());
+
     claConn.removeHook(echoHook);
   }
 }
