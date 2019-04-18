@@ -41,6 +41,9 @@ public class VotingSystem {
 
   /**
    * @param args the command line arguments
+   * @throws java.io.IOException
+   * @throws com.hkkt.communication.ChannelSelectorCannotStartException
+   * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
   public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
     // TODO code application logic here
@@ -49,10 +52,9 @@ public class VotingSystem {
     Random rand = new Random();
     CLA cla = new CLA("cla", claPort);
     CTF ctf = new CTF("ctf", ctfPort);
-    
+
     int randId = rand.nextInt(1000);
 
-    
     Hook echoHook = new Hook() {
       private Datagram data;
 
@@ -81,18 +83,18 @@ public class VotingSystem {
     //ctfConn.sendMessage("HELLO CTF");
 
     claConn.sendRequest(VotingSystemDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString());
-    
+
     String ctfMsg1 = (randId + " " + "100" + " " + "STALIN");
     ctfConn.sendMessage(ctfMsg1);
-    
+
     randId = rand.nextInt(1000);
     String ctfMsg2 = (randId + " " + "200" + " " + "STALIN");
     ctfConn.sendMessage(ctfMsg2);
-    
+
     randId = rand.nextInt(1000);
     String ctfMsg3 = (randId + " " + "400" + " " + "HITLER");
     ctfConn.sendMessage(ctfMsg3);
-    
+
     claConn.removeHook(echoHook);
   }
 }
