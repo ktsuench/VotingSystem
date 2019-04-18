@@ -31,6 +31,7 @@ import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
 import com.hkkt.util.Hook;
 import java.io.IOException;
+import java.util.Random;
 
 /**
  *
@@ -45,8 +46,13 @@ public class VotingSystem {
     // TODO code application logic here
     int claPort = 5000, ctfPort = 6000;
     String voterId = "voter";
+    Random rand = new Random();
     CLA cla = new CLA("cla", claPort);
     CTF ctf = new CTF("ctf", ctfPort);
+    
+    int randId = rand.nextInt(1000);
+
+    
     Hook echoHook = new Hook() {
       private Datagram data;
 
@@ -72,10 +78,21 @@ public class VotingSystem {
     ctfConn.addHook(echoHook);
 
     claConn.sendMessage("HELLO CLA");
-    ctfConn.sendMessage("HELLO CTF");
+    //ctfConn.sendMessage("HELLO CTF");
 
     claConn.sendRequest(VotingSystemDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString());
-
+    
+    String ctfMsg1 = (randId + " " + "100" + " " + "STALIN");
+    ctfConn.sendMessage(ctfMsg1);
+    
+    randId = rand.nextInt(1000);
+    String ctfMsg2 = (randId + " " + "200" + " " + "STALIN");
+    ctfConn.sendMessage(ctfMsg2);
+    
+    randId = rand.nextInt(1000);
+    String ctfMsg3 = (randId + " " + "400" + " " + "HITLER");
+    ctfConn.sendMessage(ctfMsg3);
+    
     claConn.removeHook(echoHook);
   }
 }
