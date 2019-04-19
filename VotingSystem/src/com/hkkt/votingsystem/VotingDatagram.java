@@ -59,6 +59,18 @@ public class VotingDatagram extends Datagram {
     return new VotingDatagram(otherType, sender, receiver, data, timestamp);
   }
 
+  public static boolean isVotingSystemDatagram(byte[] bytes) throws UnsupportedEncodingException {
+    int pad = ServerConnectionManager.MAX_NAME_LENGTH * 2 + MAX_TYPE_LENGTH;
+    String temp = new String(bytes, STRING_ENCODING);
+    String actionType = temp.substring(pad, pad + MAX_TYPE_OTHER_LENGTH).trim();
+
+    return ACTION_TYPE.isValid(actionType);
+  }
+
+  public static boolean isVotingSystemDatagram(Datagram datagram) throws UnsupportedEncodingException {
+    return ACTION_TYPE.isValid(datagram.getTypeOther());
+  }
+
   protected final ACTION_TYPE OP_TYPE;
 
   public VotingDatagram(ACTION_TYPE type, String sender, String receiver, String data, Instant timestamp) throws DatagramMissingSenderReceiverException {
@@ -72,6 +84,10 @@ public class VotingDatagram extends Datagram {
 
   public VotingDatagram(ACTION_TYPE type, String sender, String receiver) throws DatagramMissingSenderReceiverException {
     this(type, sender, receiver, null, Instant.now());
+  }
+
+  public VotingDatagram(Datagram datagram) throws DatagramMissingSenderReceiverException {
+    this(ACTION_TYPE.valueOf(datagram.getTypeOther()), datagram.getSender(), datagram.getReceiver(), datagram.getData(), datagram.getTimestamp());
   }
 
   @Override
@@ -118,6 +134,16 @@ public class VotingDatagram extends Datagram {
   }
 
   public static enum ACTION_TYPE {
-    REQUEST_VALIDATION_NUM
+    REQUEST_VALIDATION_NUM;
+
+    public static boolean isValid(String action) {
+      try {
+        valueOf(action);
+      } catch (IllegalArgumentException ex) {
+        return false;
+      }
+
+      return true;
+    }
   }
 }
