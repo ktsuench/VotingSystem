@@ -35,8 +35,8 @@ import java.util.Objects;
  *
  * @author Kent Tsuenchy
  */
-public class VotingSystemDatagram extends Datagram {
-  public static Datagram fromBytes(byte[] bytes) throws UnsupportedEncodingException, DatagramMissingSenderReceiverException {
+public class VotingDatagram extends Datagram {
+  public static VotingDatagram fromBytes(byte[] bytes) throws UnsupportedEncodingException, DatagramMissingSenderReceiverException {
     int pad = ServerConnectionManager.MAX_NAME_LENGTH;
     String temp = new String(bytes, STRING_ENCODING);
     String sender;
@@ -56,21 +56,21 @@ public class VotingSystemDatagram extends Datagram {
     pad += MAX_TIMESTAMP_LENGTH;
     data = temp.substring(pad).trim();
 
-    return new VotingSystemDatagram(otherType, sender, receiver, data, timestamp);
+    return new VotingDatagram(otherType, sender, receiver, data, timestamp);
   }
 
   protected final ACTION_TYPE OP_TYPE;
 
-  public VotingSystemDatagram(ACTION_TYPE type, String sender, String receiver, String data, Instant timestamp) throws DatagramMissingSenderReceiverException {
+  public VotingDatagram(ACTION_TYPE type, String sender, String receiver, String data, Instant timestamp) throws DatagramMissingSenderReceiverException {
     super(Datagram.DATA_TYPE.OTHER, type.toString(), sender, receiver, data, timestamp);
     this.OP_TYPE = type;
   }
 
-  public VotingSystemDatagram(ACTION_TYPE type, String sender, String receiver, String data) throws DatagramMissingSenderReceiverException {
+  public VotingDatagram(ACTION_TYPE type, String sender, String receiver, String data) throws DatagramMissingSenderReceiverException {
     this(type, sender, receiver, data, Instant.now());
   }
 
-  public VotingSystemDatagram(ACTION_TYPE type, String sender, String receiver) throws DatagramMissingSenderReceiverException {
+  public VotingDatagram(ACTION_TYPE type, String sender, String receiver) throws DatagramMissingSenderReceiverException {
     this(type, sender, receiver, null, Instant.now());
   }
 
@@ -78,8 +78,8 @@ public class VotingSystemDatagram extends Datagram {
   public boolean equals(Object o) {
     boolean equal = false;
 
-    if (o instanceof VotingSystemDatagram) {
-      VotingSystemDatagram v = (VotingSystemDatagram) o;
+    if (o instanceof VotingDatagram) {
+      VotingDatagram v = (VotingDatagram) o;
 
       equal = this.hashCode() == v.hashCode();
     }
@@ -87,6 +87,7 @@ public class VotingSystemDatagram extends Datagram {
     return equal;
   }
 
+  @Override
   public byte[] getBytes() throws UnsupportedEncodingException {
     int pad = ServerConnectionManager.MAX_NAME_LENGTH;
     String temp;

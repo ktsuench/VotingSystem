@@ -82,7 +82,7 @@ public class VotingSystem {
     claConn.sendMessage("HELLO CLA");
     //ctfConn.sendMessage("HELLO CTF");
 
-    claConn.sendRequest(VotingSystemDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString());
+    claConn.sendRequest(VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString());
 
     String ctfMsg1 = (randId + " " + "100" + " " + "STALIN");
     ctfConn.sendMessage(ctfMsg1);
