@@ -146,6 +146,23 @@ public class Datagram {
     return this.TYPE_OTHER;
   }
 
+  public Datagram flip(String data, DATA_TYPE type, String typeOther) throws DatagramMissingSenderReceiverException {
+    String d = data == null ? this.DATA : data;
+    return new Datagram(type, typeOther, this.RECEIVER_ID, this.SENDER_ID, d);
+  }
+
+  public Datagram flip(String data, DATA_TYPE type) throws DatagramMissingSenderReceiverException {
+    return this.flip(data, DATA_TYPE.OTHER, null);
+  }
+
+  public Datagram flip(String data, String type) throws DatagramMissingSenderReceiverException {
+    return this.flip(data, DATA_TYPE.OTHER, type);
+  }
+
+  public Datagram flip(String data) throws DatagramMissingSenderReceiverException {
+    return this.flip(data, this.TYPE, null);
+  }
+
   @Override
   public int hashCode() {
     int hash = 7;
@@ -159,6 +176,6 @@ public class Datagram {
   }
 
   public static enum DATA_TYPE {
-    MESSAGE, NOTIFICATION, UPDATE_ID, OTHER
+    MESSAGE, NOTIFICATION, UPDATE_ID, ERROR, OTHER
   }
 }

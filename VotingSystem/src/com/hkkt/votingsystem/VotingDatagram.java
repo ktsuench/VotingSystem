@@ -121,6 +121,16 @@ public class VotingDatagram extends Datagram {
     return this.OP_TYPE;
   }
 
+  public VotingDatagram flip(String data, ACTION_TYPE type) throws DatagramMissingSenderReceiverException {
+    String d = data == null ? this.DATA : data;
+    return new VotingDatagram(type, this.RECEIVER_ID, this.SENDER_ID, d);
+  }
+
+  @Override
+  public VotingDatagram flip(String data) throws DatagramMissingSenderReceiverException {
+    return this.flip(data, this.OP_TYPE);
+  }
+
   @Override
   public int hashCode() {
     int hash = 13;
@@ -134,7 +144,7 @@ public class VotingDatagram extends Datagram {
   }
 
   public static enum ACTION_TYPE {
-    REQUEST_VALIDATION_NUM;
+    REQUEST_VALIDATION_NUM, SUBMIT_VOTE;
 
     public static boolean isValid(String action) {
       try {
