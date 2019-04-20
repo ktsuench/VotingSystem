@@ -27,7 +27,7 @@ import com.hkkt.votingsystem.AbstractServer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
@@ -90,7 +90,7 @@ public class Connection implements Runnable {
     try {
       SocketChannel channel = manager.getChannel(this.name);
       ByteBuffer buffer = ByteBuffer.allocate(1024);
-      ArrayList<Datagram> list;
+      ConcurrentLinkedDeque<Datagram> list;
       Datagram data;
 
       if (this.getTaskType() == TASK_TYPE.READ) {
@@ -116,9 +116,7 @@ public class Connection implements Runnable {
 
         if (list != null && list.size() > 0) {
           // get next in queue
-          data = list.get(0);
-          // remove from queue
-          list.remove(0);
+          data = list.poll();
 
           // send to client
           buffer.put(data.getBytes());

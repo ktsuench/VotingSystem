@@ -31,11 +31,11 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Observer;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -51,7 +51,7 @@ public class ClientConnectionManager {
   private final HashMap<Hook, Observer> HOOKS_LIST;
   private final String NAME;
   private final Selector SELECTOR;
-  private final ArrayList<Datagram> SEND_DATAGRAMS;
+  private final ConcurrentLinkedDeque<Datagram> SEND_DATAGRAMS;
   private final TaskHandler TASK_HANDLER;
   private boolean channelActive;
   private boolean die;
@@ -68,7 +68,7 @@ public class ClientConnectionManager {
   public ClientConnectionManager(String name, int port) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
     this.HOOKS = new DataObservable();
     this.HOOKS_LIST = new HashMap<>();
-    this.SEND_DATAGRAMS = new ArrayList<>();
+    this.SEND_DATAGRAMS = new ConcurrentLinkedDeque<>();
     this.TASK_HANDLER = new TaskHandler();
     this.channelActive = false;
     this.die = false;
@@ -115,7 +115,7 @@ public class ClientConnectionManager {
                 if (this.HOOKS.countObservers() > 0)
                   this.HOOKS.updateObservers(Datagram.fromBytes(buffer.array()));
               } else if (key.isWritable() && this.SEND_DATAGRAMS.size() > 0) {
-                buffer.put(this.SEND_DATAGRAMS.remove(0).getBytes());
+                buffer.put(this.SEND_DATAGRAMS.poll().getBytes());
                 buffer.flip();
                 this.CHANNEL.write(buffer);
               }

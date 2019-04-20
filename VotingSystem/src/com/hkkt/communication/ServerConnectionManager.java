@@ -31,10 +31,10 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -45,7 +45,7 @@ public class ServerConnectionManager {
   private static final Logger LOG = Logger.getLogger(ServerConnectionManager.class.getName());
   private HashMap<String, SocketChannel> channels;
   private HashMap<String, Connection> connections;
-  private HashMap<String, ArrayList<Datagram>> datagrams;
+  private HashMap<String, ConcurrentLinkedDeque<Datagram>> datagrams;
   private int defaultChannelId = 0;
   private Selector selector;
   private ServerSocketChannel server = null;
@@ -169,14 +169,8 @@ public class ServerConnectionManager {
   }
 
   public void addDatagramToQueue(String name, Datagram data) {
-    ArrayList<Datagram> list = this.datagrams.get(name);
-
-    if (list == null) {
-      list = new ArrayList<>();
-      this.datagrams.put(name, list);
-    }
-
-    list.add(data);
+    System.out.println(data.getReceiver() + " " + data.getData());
+    this.datagrams.computeIfAbsent(name, key -> new ConcurrentLinkedDeque<>()).add(data);
   }
 
   /**
@@ -221,15 +215,15 @@ public class ServerConnectionManager {
     return this.channels.get(name);
   }
 
-  public ArrayList<Datagram> getDatagrams(String name) {
+  public ConcurrentLinkedDeque<Datagram> getDatagrams(String name) {
     return this.datagrams.get(name);
   }
 
   public void removeDatagramFromQueue(String name, Datagram data) {
-    ArrayList<Datagram> list = this.datagrams.get(name);
-
-    if (list != null)
+    this.datagrams.computeIfPresent(name, (key, list) -> {
       list.remove(data);
+      return list;
+    });
   }
 
   /**
@@ -244,24 +238,16 @@ public class ServerConnectionManager {
       return false;
 
     if (this.channels.containsKey(oldName) && !this.channels.containsKey(newName)) {
-      SocketChannel channel = this.channels.get(oldName);
-      Connection connection = this.connections.get(oldName);
-      ArrayList<Datagram> datagramQueue = this.datagrams.get(oldName);
+      this.channels.put(newName, this.channels.remove(oldName));
 
-      this.channels.remove(oldName);
-      this.channels.put(newName, channel);
+      this.connections.computeIfPresent(oldName, (key, conn) -> {
+        conn.setName(newName);
+        return this.connections.put(newName, conn);
+      });
 
-      if (connection != null) {
-        this.connections.remove(oldName);
-        this.connections.put(newName, connection);
-
-        connection.setName(newName);
-      }
-
-      if (datagramQueue != null) {
-        this.datagrams.remove(oldName);
-        this.datagrams.put(newName, datagramQueue);
-      }
+      this.datagrams.computeIfPresent(oldName, (key, data) -> {
+        return this.datagrams.put(newName, data);
+      });
 
       return true;
     }
