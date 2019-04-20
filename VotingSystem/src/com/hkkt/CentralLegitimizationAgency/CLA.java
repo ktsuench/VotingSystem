@@ -31,6 +31,7 @@ import com.hkkt.communication.ServerConnectionManager;
 import com.hkkt.votingsystem.AbstractServer;
 import com.hkkt.votingsystem.VotingDatagram;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -40,11 +41,11 @@ import java.util.logging.Logger;
  * @author Hassan Khan
  */
 public class CLA extends AbstractServer {
-  private static final long VALIDATION_NUM_LIMIT = Long.MAX_VALUE;
+  private static final int VALIDATION_NUM_LIMIT = Integer.MAX_VALUE;
   private ClientConnectionManager clientManager;
   private final String name;
   private final ServerConnectionManager serverManager;
-  private final HashMap<String, Long> validationTickets;
+  private final HashMap<String, Integer> validationTickets;
 
   /**
    * Constructs a Central Legitimization Agency
@@ -78,8 +79,8 @@ public class CLA extends AbstractServer {
    * @param voter id
    * @return validation ticket if voter not registered, otherwise -1
    */
-  public long generateValidationTicket(String voter) {
-    long validationTicket = (long) (Math.random() * VALIDATION_NUM_LIMIT);
+  private int generateValidationTicket(String voter) {
+    int validationTicket = (int) (Math.random() * VALIDATION_NUM_LIMIT);
     boolean alreadyRegistered = this.validationTickets.containsKey(voter);
 
     if (!alreadyRegistered)
@@ -98,8 +99,30 @@ public class CLA extends AbstractServer {
     System.out.println(this.name + " received message from " + datagram.getSender() + ": " + datagram.getData());
 
     try {
-      Datagram echo = new Datagram(Datagram.DATA_TYPE.MESSAGE, this.name, datagram.getSender(), datagram.getData());
-      this.serverManager.addDatagramToQueue(datagram.getSender(), echo);
+      if (VotingDatagram.isVotingSystemDatagram(datagram)) {
+        VotingDatagram votingDatagram = new VotingDatagram(datagram);
+        Datagram response;
+
+        switch(votingDatagram.getOperationType()) {
+          case REQUEST_VALIDATION_NUM:
+            String data = Integer.toString(this.generateValidationTicket(datagram.getData()));
+            response = votingDatagram.flip(data);
+            break;
+          default:
+            String errorMsg = "Unknown request. CLA cannot handle the requested operation.";
+            response = datagram.flip(errorMsg, Datagram.DATA_TYPE.ERROR);
+            break;
+        }
+
+        this.serverManager.addDatagramToQueue(response.getReceiver(), response);
+      }
+    } catch (UnsupportedEncodingException | DatagramMissingSenderReceiverException ex) {
+      Logger.getLogger(CLA.class.getName()).log(Level.SEVERE, null, ex);
+    }
+
+    try {
+      Datagram echo = datagram.flip(datagram.getData());
+      this.serverManager.addDatagramToQueue(echo.getReceiver(), echo);
     } catch (DatagramMissingSenderReceiverException ex) {
       Logger.getLogger(CLA.class.getName()).log(Level.SEVERE, null, ex);
     }

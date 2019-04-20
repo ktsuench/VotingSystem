@@ -26,12 +26,11 @@ package com.hkkt.votingsystem;
 import com.hkkt.CentralLegitimizationAgency.CLA;
 import com.hkkt.CentralTabulationFacility.CTF;
 import com.hkkt.communication.ChannelSelectorCannotStartException;
-import com.hkkt.communication.ClientConnectionManager;
-import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
-import com.hkkt.util.Hook;
 import java.io.IOException;
-import java.util.Random;
+import java.util.ArrayList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -48,53 +47,31 @@ public class VotingSystem {
   public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
     // TODO code application logic here
     int claPort = 5000, ctfPort = 6000;
-    String voterId = "voter";
-    Random rand = new Random();
+//    String voterId = "voter";
     CLA cla = new CLA("cla", claPort);
     CTF ctf = new CTF("ctf", ctfPort);
+    ArrayList<Voter> voters = new ArrayList<>();
+    ArrayList<String> ballotOptions = new ArrayList<>();
 
-    int randId = rand.nextInt(1000);
+    voters.add(new Voter("voterA", claPort, ctfPort));
+    voters.add(new Voter("voterB", claPort, ctfPort));
+    voters.add(new Voter("voterC", claPort, ctfPort));
 
-    Hook echoHook = new Hook() {
-      private Datagram data;
-
-      @Override
-      public void setHookData(Object data) {
-        if (data instanceof Datagram)
-          this.data = (Datagram) data;
-      }
-
-      @Override
-      public void run() {
-        System.out.println("voter received message from " + this.data.getSender() + ": " + this.data.getData());
-      }
-    };
+    ballotOptions.add("HITLER");
+    ballotOptions.add("STALIN");
+    ballotOptions.add("MUMU");
 
     cla.connectToCTF(ctfPort);
     ctf.connectToCLA(claPort);
 
-    ClientConnectionManager claConn = new ClientConnectionManager(voterId, claPort);
-    ClientConnectionManager ctfConn = new ClientConnectionManager(voterId, ctfPort);
-
-    claConn.addHook(echoHook);
-    ctfConn.addHook(echoHook);
-
-    claConn.sendMessage("HELLO CLA");
-    //ctfConn.sendMessage("HELLO CTF");
-
-    claConn.sendRequest(VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString());
-
-    String ctfMsg1 = (randId + " " + "100" + " " + "STALIN");
-    ctfConn.sendMessage(ctfMsg1);
-
-    randId = rand.nextInt(1000);
-    String ctfMsg2 = (randId + " " + "200" + " " + "STALIN");
-    ctfConn.sendMessage(ctfMsg2);
-
-    randId = rand.nextInt(1000);
-    String ctfMsg3 = (randId + " " + "400" + " " + "HITLER");
-    ctfConn.sendMessage(ctfMsg3);
-
-    claConn.removeHook(echoHook);
+    voters.forEach(v -> {
+      v.whenFree(() -> {
+        try {
+          v.submitVote(ballotOptions.get((int) (Math.random() * ballotOptions.size())));
+        } catch (DatagramMissingSenderReceiverException ex) {
+          Logger.getLogger(VotingSystem.class.getName()).log(Level.SEVERE, null, ex);
+        }
+      }, VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM);
+    });
   }
 }
