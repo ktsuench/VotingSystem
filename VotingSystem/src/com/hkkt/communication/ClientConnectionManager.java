@@ -209,7 +209,8 @@ public class ClientConnectionManager {
    * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
   public void sendRequest(String requestType, String receiver, String data) throws DatagramMissingSenderReceiverException {
-    Datagram datagram = new Datagram(Datagram.DATA_TYPE.OTHER, requestType, NAME, receiver, data);
+    String r = receiver == null ? DEFAULT_RECIPIENT : receiver;
+    Datagram datagram = new Datagram(Datagram.DATA_TYPE.OTHER, requestType, NAME, r, data);
 
     this.SEND_DATAGRAMS.add(datagram);
   }
