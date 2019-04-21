@@ -103,7 +103,12 @@ public class ClientConnectionManager {
 
           while (keyIterator.hasNext()) {
             SelectionKey key = keyIterator.next();
-            ByteBuffer buffer = ByteBuffer.allocate(1024);
+            ByteBuffer buffer;
+
+            if (key.attachment() instanceof Connection)
+              buffer = ByteBuffer.allocate(((Connection) key.attachment()).getMaxBufferSize());
+            else
+              buffer = ByteBuffer.allocate(Connection.DEFAULT_MAX_BUFFER_SIZE);
 
             if (!this.channelActive) {
               this.channelActive = true;

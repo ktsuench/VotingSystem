@@ -38,25 +38,37 @@ import java.util.logging.Logger;
  * @author Kent Tsuenchy
  */
 public class Connection implements Runnable {
+  public static final int DEFAULT_MAX_BUFFER_SIZE = 4096;
+  public static final int MINIMUM_BUFFER_SIZE = 1024;
   private static final Logger LOG = Logger.getLogger(Connection.class.getName());
   private final AtomicBoolean ACTIVE;
   private final AtomicBoolean CONNECTED;
   private final AtomicBoolean CREATED;
   private final AtomicBoolean LISTENING;
+  private final ServerConnectionManager MANAGER;
+  private final int MAX_BUFFER_SIZE;
+  private final AbstractServer SERVER;
   private final AtomicInteger TYPE;
   private String name;
-  private final ServerConnectionManager manager;
-  private final AbstractServer server;
 
-  public Connection(String name, ServerConnectionManager manager, AbstractServer server) {
+  public Connection(String name, ServerConnectionManager manager, AbstractServer server, int maxBufferSize) {
     this.CREATED = new AtomicBoolean(false);
     this.CONNECTED = new AtomicBoolean(false);
     this.LISTENING = new AtomicBoolean(false);
     this.ACTIVE = new AtomicBoolean(false);
     this.TYPE = new AtomicInteger(TASK_TYPE.AVAILABLE.ordinal());
     this.name = name;
-    this.manager = manager;
-    this.server = server;
+    this.MANAGER = manager;
+    this.SERVER = server;
+    this.MAX_BUFFER_SIZE = maxBufferSize < MINIMUM_BUFFER_SIZE ? DEFAULT_MAX_BUFFER_SIZE : maxBufferSize;
+  }
+
+    public Connection(String name, ServerConnectionManager manager, AbstractServer server) {
+    this(name, manager, server, -1);
+  }
+
+  public int getMaxBufferSize() {
+    return this.MAX_BUFFER_SIZE;
   }
 
   public String getName() {
@@ -88,8 +100,8 @@ public class Connection implements Runnable {
     this.ACTIVE.set(true);
 
     try {
-      SocketChannel channel = manager.getChannel(this.name);
-      ByteBuffer buffer = ByteBuffer.allocate(1024);
+      SocketChannel channel = MANAGER.getChannel(this.name);
+      ByteBuffer buffer = ByteBuffer.allocate(this.getMaxBufferSize());
       ConcurrentLinkedDeque<Datagram> list;
       Datagram data;
 
@@ -104,15 +116,15 @@ public class Connection implements Runnable {
 
         if (data.getReceiver().equals(ServerConnectionManager.SERVER_NAME)) {
           if (data.getType() == Datagram.DATA_TYPE.UPDATE_ID)
-            manager.updateChannelId(name, data.getSender());
+            MANAGER.updateChannelId(name, data.getSender());
           else
-            server.handleDatagram(data);
+            SERVER.handleDatagram(data);
         } else {
           // add to queue
-          manager.addDatagramToQueue(data.getReceiver(), data);
+          MANAGER.addDatagramToQueue(data.getReceiver(), data);
         }
       } else if (this.getTaskType() == TASK_TYPE.WRITE) {
-        list = manager.getDatagrams(this.name);
+        list = MANAGER.getDatagrams(this.name);
 
         if (list != null && list.size() > 0) {
           // get next in queue
