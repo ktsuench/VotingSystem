@@ -88,10 +88,10 @@ public class ClientConnectionManager {
       // TODO need to check how to kill thread if required to force quit
       while (true)
         try {
-          if (this.die)
+          if (die)
             break;
 
-          Thread.sleep(200);
+          Thread.sleep(100);
 
           int readyChannels = SELECTOR.selectNow();
 
@@ -110,24 +110,24 @@ public class ClientConnectionManager {
             else
               buffer = ByteBuffer.allocate(Connection.DEFAULT_MAX_BUFFER_SIZE);
 
-            if (!this.channelActive) {
-              this.channelActive = true;
+            if (!channelActive) {
+              channelActive = true;
 
               if (key.isReadable()) {
-                this.CHANNEL.read(buffer);
+                CHANNEL.read(buffer);
                 buffer.flip();
 
-                if (this.HOOKS.countObservers() > 0)
-                  this.HOOKS.updateObservers(Datagram.fromBytes(buffer.array()));
-              } else if (key.isWritable() && this.SEND_DATAGRAMS.size() > 0) {
-                buffer.put(this.SEND_DATAGRAMS.poll().getBytes());
+                if (HOOKS.countObservers() > 0)
+                  HOOKS.updateObservers(Datagram.fromBytes(buffer.array()));
+              } else if (key.isWritable() && SEND_DATAGRAMS.size() > 0) {
+                buffer.put(SEND_DATAGRAMS.poll().getBytes());
                 buffer.flip();
-                this.CHANNEL.write(buffer);
+                CHANNEL.write(buffer);
               }
             }
 
             keyIterator.remove();
-            this.channelActive = false; // may cause issues if more than one channel is being used
+            channelActive = false; // may cause issues if more than one channel is being used
           }
         } catch (IOException | DatagramMissingSenderReceiverException ex) {
           // TODO log this to log file

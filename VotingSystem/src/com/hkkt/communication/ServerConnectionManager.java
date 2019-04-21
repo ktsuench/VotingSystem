@@ -69,14 +69,14 @@ public class ServerConnectionManager {
       // TODO need to check how to kill thread if required to force quit
       while (true)
         try {
-          Thread.sleep(200);
+          Thread.sleep(100);
 
-          int readyChannels = this.selector.selectNow();
+          int readyChannels = selector.selectNow();
 
           if (readyChannels == 0)
             continue;
 
-          Set<SelectionKey> selectedKeys = this.selector.selectedKeys();
+          Set<SelectionKey> selectedKeys = selector.selectedKeys();
           Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
 
           while (keyIterator.hasNext()) {
@@ -102,7 +102,7 @@ public class ServerConnectionManager {
             // LOG.log(Level.WARNING, "Unknown event fired for a channel found in selector.");
 
             if (startTask)
-              this.taskHandler.startTask(connection);
+              taskHandler.startTask(connection);
 
             keyIterator.remove();
           }
@@ -141,12 +141,12 @@ public class ServerConnectionManager {
             connection.toggleConnected();
 
             // register channel with selector to notify for the specified ready events
-            channel.register(this.selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, connection);
+            channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, connection);
             connection.toggleListening();
 
             // add to map for clean up later
-            this.channels.put(name, channel);
-            this.connections.put(name, connection);
+            channels.put(name, channel);
+            connections.put(name, connection);
           } catch (ClosedChannelException ex) {
             break;
           } catch (IOException ex) {
