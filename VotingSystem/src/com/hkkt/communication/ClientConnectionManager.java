@@ -31,10 +31,10 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Observer;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -48,7 +48,7 @@ public class ClientConnectionManager {
   private static final Logger LOG = Logger.getLogger(ClientConnectionManager.class.getName());
   private final SocketChannel CHANNEL;
   private final DataObservable HOOKS;
-  private final HashMap<Hook, Observer> HOOKS_LIST;
+  private final ConcurrentHashMap<Hook, Observer> HOOKS_LIST;
   private final String NAME;
   private final Selector SELECTOR;
   private final ConcurrentLinkedDeque<Datagram> SEND_DATAGRAMS;
@@ -67,7 +67,7 @@ public class ClientConnectionManager {
    */
   public ClientConnectionManager(String name, int port) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
     this.HOOKS = new DataObservable();
-    this.HOOKS_LIST = new HashMap<>();
+    this.HOOKS_LIST = new ConcurrentHashMap<>();
     this.SEND_DATAGRAMS = new ConcurrentLinkedDeque<>();
     this.TASK_HANDLER = new TaskHandler();
     this.channelActive = false;

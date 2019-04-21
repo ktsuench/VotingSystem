@@ -31,9 +31,9 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -43,18 +43,18 @@ public class ServerConnectionManager {
   public static final String SERVER_NAME = "SERVER";
   private static final String DEFAULT_CHANNEL = "Default_Channel_Name";
   private static final Logger LOG = Logger.getLogger(ServerConnectionManager.class.getName());
-  private HashMap<String, SocketChannel> channels;
-  private HashMap<String, Connection> connections;
-  private HashMap<String, ConcurrentLinkedDeque<Datagram>> datagrams;
+  private ConcurrentHashMap<String, SocketChannel> channels;
+  private ConcurrentHashMap<String, Connection> connections;
+  private ConcurrentHashMap<String, ConcurrentLinkedDeque<Datagram>> datagrams;
   private int defaultChannelId = 0;
   private Selector selector;
   private ServerSocketChannel server = null;
   private TaskHandler taskHandler;
 
   public ServerConnectionManager(int port, AbstractServer root) throws ChannelSelectorCannotStartException {
-    this.channels = new HashMap<>();
-    this.connections = new HashMap<>();
-    this.datagrams = new HashMap<>();
+    this.channels = new ConcurrentHashMap<>();
+    this.connections = new ConcurrentHashMap<>();
+    this.datagrams = new ConcurrentHashMap<>();
     this.taskHandler = new TaskHandler();
 
     try {
@@ -169,7 +169,6 @@ public class ServerConnectionManager {
   }
 
   public void addDatagramToQueue(String name, Datagram data) {
-    System.out.println(data.getReceiver() + " " + data.getData());
     this.datagrams.computeIfAbsent(name, key -> new ConcurrentLinkedDeque<>()).add(data);
   }
 
