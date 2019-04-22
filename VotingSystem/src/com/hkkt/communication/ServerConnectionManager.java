@@ -51,7 +51,7 @@ public class ServerConnectionManager {
   private ServerSocketChannel server = null;
   private TaskHandler taskHandler;
 
-  public ServerConnectionManager(int port, AbstractServer root) throws ChannelSelectorCannotStartException {
+  public ServerConnectionManager(InetSocketAddress address, AbstractServer root) throws ChannelSelectorCannotStartException {
     this.channels = new ConcurrentHashMap<>();
     this.connections = new ConcurrentHashMap<>();
     this.datagrams = new ConcurrentHashMap<>();
@@ -69,7 +69,7 @@ public class ServerConnectionManager {
       // TODO need to check how to kill thread if required to force quit
       while (true)
         try {
-          Thread.sleep(100);
+          Thread.sleep(200);
 
           int readyChannels = selector.selectNow();
 
@@ -116,7 +116,7 @@ public class ServerConnectionManager {
 
     try {
       this.server = ServerSocketChannel.open();
-      this.server.socket().bind(new InetSocketAddress("localhost", port));
+      this.server.socket().bind(address);
       this.server.configureBlocking(true);
 
       Runnable startListening = () -> {
@@ -148,7 +148,7 @@ public class ServerConnectionManager {
             channels.put(name, channel);
             connections.put(name, connection);
           } catch (ClosedChannelException ex) {
-            break;
+            // break;
           } catch (IOException ex) {
             LOG.log(Level.SEVERE, null, ex);
 

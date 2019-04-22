@@ -59,13 +59,13 @@ public class ClientConnectionManager {
   /**
    *
    * @param name should be less than 40 characters
-   * @param port
+   * @param address
    *
    * @throws IOException
    * @throws com.hkkt.communication.ChannelSelectorCannotStartException
    * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
-  public ClientConnectionManager(String name, int port) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
+  public ClientConnectionManager(String name, InetSocketAddress address) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
     this.HOOKS = new DataObservable();
     this.HOOKS_LIST = new ConcurrentHashMap<>();
     this.SEND_DATAGRAMS = new ConcurrentLinkedDeque<>();
@@ -91,7 +91,7 @@ public class ClientConnectionManager {
           if (die)
             break;
 
-          Thread.sleep(100);
+          Thread.sleep(300);
 
           int readyChannels = SELECTOR.selectNow();
 
@@ -142,7 +142,7 @@ public class ClientConnectionManager {
     this.SEND_DATAGRAMS.add(new Datagram(Datagram.DATA_TYPE.UPDATE_ID, name, ServerConnectionManager.SERVER_NAME, name));
 
     this.CHANNEL.configureBlocking(false);
-    this.CHANNEL.connect(new InetSocketAddress("localhost", port));
+    this.CHANNEL.connect(address);
 
     while (this.CHANNEL.isConnectionPending())
       // do nothing for now, later on do set up if there is any
@@ -163,6 +163,19 @@ public class ClientConnectionManager {
   public void cleanup() {
     this.TASK_HANDLER.cleanup();
     this.die = true;
+
+    try {
+      this.CHANNEL.close();
+    } catch (IOException ex) {
+      Logger.getLogger(ClientConnectionManager.class.getName()).log(Level.SEVERE, null, ex);
+    }
+
+    try {
+      this.SELECTOR.close();
+    } catch (IOException ex) {
+      Logger.getLogger(ClientConnectionManager.class.getName()).log(Level.SEVERE, null, ex);
+    }
+
     // TODO notify observers that client is closing
     this.HOOKS.deleteObservers();
   }

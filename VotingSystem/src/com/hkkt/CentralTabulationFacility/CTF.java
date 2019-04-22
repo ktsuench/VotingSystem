@@ -30,6 +30,7 @@ import com.hkkt.communication.DatagramMissingSenderReceiverException;
 import com.hkkt.communication.ServerConnectionManager;
 import com.hkkt.votingsystem.AbstractServer;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -54,12 +55,14 @@ public class CTF extends AbstractServer {
    * Constructs a Central Tabulation Facility
    *
    * @param name CTF unique id
-   * @param port the port that the CTF is listening on
+   * @param address the address that the CTF is located at
+   * @param numVoters
+   * @param ballotOptions
    * @throws ChannelSelectorCannotStartException
    * @throws IOException
    */
-  public CTF(String name, int port) throws ChannelSelectorCannotStartException, IOException {
-    this.serverManager = new ServerConnectionManager(port, this);
+  public CTF(String name, InetSocketAddress address, int numVoters, ArrayList<String> ballotOptions) throws ChannelSelectorCannotStartException, IOException {
+    this.serverManager = new ServerConnectionManager(address, this);
     this.name = name;
     this.validationTickets = new HashMap<>();
     this.crossedOff = new ArrayList();
@@ -71,13 +74,13 @@ public class CTF extends AbstractServer {
   /**
    * Connect to the Central Legitimization
    *
-   * @param port the port that the CLA is listening on
+   * @param address the address that the CLA is located at
    * @throws ChannelSelectorCannotStartException
    * @throws IOException
    * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
-  public void connectToCLA(int port) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException {
-    this.clientManager = new ClientConnectionManager(this.name, 5000);
+  public void connectToCLA(InetSocketAddress address) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException {
+    this.clientManager = new ClientConnectionManager(this.NAME, address);
   }
 
   /**
