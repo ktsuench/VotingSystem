@@ -80,9 +80,14 @@ public class CTF extends AbstractServer {
     ballotOptions.forEach(option -> VOTE_RESULTS.put(option.toUpperCase(), new ArrayList<>()));
   }
 
-  public void addVoteTally(int idNum, String vote) {
+  public boolean addVoteTally(int idNum, String vote) {
     // System.out.println("Voted for " + vote.toUpperCase());
-    this.VOTE_RESULTS.get(vote.toUpperCase()).add(idNum);
+    if (this.VOTE_RESULTS.containsKey(vote.toUpperCase())) {
+      this.VOTE_RESULTS.get(vote.toUpperCase()).add(idNum);
+      return true;
+    }
+
+    return false;
   }
 
   public boolean checkValNum(int valNum) {
@@ -147,9 +152,12 @@ public class CTF extends AbstractServer {
 
             if (checkValNum(valNumReceived) == true && CROSSED_OFF.containsValue(valNumReceived) == false) {
               //validation number is valid and number is not in crossed off list
-              addVoteTally(randIdReceived, voteReceived);
-              crossValNum(randIdReceived, valNumReceived);
-              response = votingDatagram.flip(Boolean.toString(true));
+              if (addVoteTally(randIdReceived, voteReceived)) {
+                crossValNum(randIdReceived, valNumReceived);
+                response = votingDatagram.flip(Boolean.toString(true));
+              } else {
+                response = votingDatagram.flip(Boolean.toString(false));
+              }
             } else
               response = votingDatagram.flip(Boolean.toString(false));
 

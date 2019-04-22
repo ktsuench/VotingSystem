@@ -115,7 +115,7 @@ public class VotingSystem {
 
     ballotOptions.add("HITLER");
     ballotOptions.add("STALIN");
-    ballotOptions.add("MUMU");
+    ballotOptions.add("MUSSOLINI");
     ballotOptions.add("NAPOLEAN");
     ballotOptions.add("JULIUS");
 
