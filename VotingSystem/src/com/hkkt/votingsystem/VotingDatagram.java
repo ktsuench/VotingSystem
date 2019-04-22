@@ -41,14 +41,12 @@ public class VotingDatagram extends Datagram {
     String temp = new String(bytes, STRING_ENCODING);
     String sender;
     String receiver;
-    DATA_TYPE type;
     ACTION_TYPE otherType;
     Instant timestamp;
     String data;
 
     sender = temp.substring(0, pad).trim();
     receiver = temp.substring(pad, pad * 2).trim();
-    type = DATA_TYPE.valueOf(temp.substring(pad * 2, pad * 2 + MAX_TYPE_LENGTH).trim());
     pad = pad * 2 + MAX_TYPE_LENGTH;
     otherType = ACTION_TYPE.valueOf(temp.substring(pad, pad + MAX_TYPE_OTHER_LENGTH).trim());
     pad += MAX_TYPE_OTHER_LENGTH;
@@ -144,7 +142,7 @@ public class VotingDatagram extends Datagram {
   }
 
   public static enum ACTION_TYPE {
-    REQUEST_VALIDATION_NUM, SUBMIT_VOTE;
+    REQUEST_VALIDATION_NUM, SUBMIT_VOTE, SEND_VALIDATION_LIST;
 
     public static boolean isValid(String action) {
       try {
