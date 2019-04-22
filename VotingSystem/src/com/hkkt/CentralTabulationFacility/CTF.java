@@ -52,7 +52,7 @@ public class CTF extends AbstractServer {
   private final int NUM_VOTERS;
   private final ServerConnectionManager SERVER_MANAGER;
   private final List<Integer> VALIDATION_TICKETS;
-  private final ConcurrentHashMap<String, ArrayList<Integer>> VOTE_RESULTS;
+  private final ConcurrentHashMap<String, List<Integer>> VOTE_RESULTS;
   private final List<Runnable> TASKS;
   private ClientConnectionManager clientManager;
   private boolean publishingOutcome = false;
@@ -77,13 +77,16 @@ public class CTF extends AbstractServer {
     this.VOTE_RESULTS = new ConcurrentHashMap<>();
     this.TASKS = Collections.synchronizedList(new ArrayList<Runnable>());
 
-    ballotOptions.forEach(option -> VOTE_RESULTS.put(option.toUpperCase(), new ArrayList<>()));
+    ballotOptions.forEach(option -> VOTE_RESULTS.put(option.toUpperCase(), Collections.synchronizedList(new ArrayList<Integer>())));
   }
 
   public boolean addVoteTally(int idNum, String vote) {
     // System.out.println("Voted for " + vote.toUpperCase());
     if (this.VOTE_RESULTS.containsKey(vote.toUpperCase())) {
-      this.VOTE_RESULTS.get(vote.toUpperCase()).add(idNum);
+      List<Integer> list;
+      synchronized (list = this.VOTE_RESULTS.get(vote.toUpperCase())) {
+        list.add(idNum);
+      }
       return true;
     }
 
@@ -150,15 +153,15 @@ public class CTF extends AbstractServer {
             int valNumReceived = Integer.parseInt(arrInfo[1]);
             String voteReceived = arrInfo[2];
 
-            if (checkValNum(valNumReceived) == true && CROSSED_OFF.containsValue(valNumReceived) == false) {
+            //TODO: remove the val num check after val table is added to ctf
+            if (/*checkValNum(valNumReceived) == true &&*/ CROSSED_OFF.containsValue(valNumReceived) == false)
               //validation number is valid and number is not in crossed off list
               if (addVoteTally(randIdReceived, voteReceived)) {
                 crossValNum(randIdReceived, valNumReceived);
                 response = votingDatagram.flip(Boolean.toString(true));
-              } else {
+              } else
                 response = votingDatagram.flip(Boolean.toString(false));
-              }
-            } else
+            else
               response = votingDatagram.flip(Boolean.toString(false));
 
             if (CROSSED_OFF.mappingCount() == this.NUM_VOTERS && !publishingOutcome)
@@ -195,7 +198,7 @@ public class CTF extends AbstractServer {
 
     publishingOutcome = true;
 
-    for (Map.Entry<String, ArrayList<Integer>> entry : this.VOTE_RESULTS.entrySet())
+    for (Map.Entry<String, List<Integer>> entry : this.VOTE_RESULTS.entrySet())
       if (entry.getValue().size() > greatestVote) {
         winner.clear();
         winner.add(entry.getKey());
@@ -221,10 +224,10 @@ public class CTF extends AbstractServer {
       System.out.println("has tied in the election, each with " + greatestVote + " votes.");
     }
 
-    this.VOTE_RESULTS.forEach((name, list) -> {
-      System.out.println("The ID's of the " + list.size() + " people who voted for " + name + " is all follows: ");
-      printList(list);
-    });
+    for (Map.Entry<String, List<Integer>> entry : this.VOTE_RESULTS.entrySet()) {
+      System.out.println("The ID's of the " + entry.getValue().size() + " people who voted for " + entry.getKey() + " is all follows: ");
+      printList(entry.getValue());
+    }
   }
 
   public void whenReady(Runnable task) {
