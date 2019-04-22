@@ -111,7 +111,7 @@ public class VotingSystem {
     InetSocketAddress claAddress = new InetSocketAddress("localhost", 5000);
     InetSocketAddress ctfAddress = new InetSocketAddress("localhost", 6000);
     ArrayList<String> ballotOptions = new ArrayList<>();
-    int maxVoters = 500;
+    int maxVoters = 200;
 
     ballotOptions.add("HITLER");
     ballotOptions.add("STALIN");

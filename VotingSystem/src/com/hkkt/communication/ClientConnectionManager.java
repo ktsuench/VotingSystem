@@ -185,35 +185,15 @@ public class ClientConnectionManager {
   }
 
   /**
-   * Send data
-   *
-   * @param data
-   */
-  public void sendData(Datagram data) {
-    this.SEND_DATAGRAMS.add(data);
-  }
-
-  /**
    * Send message to the designated recipient
    *
-   * @param recipient should be less than 40 characters
+   * @param receiver should be less than 40 characters
    * @param message should be less than 120 characters
    * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
-  public void sendMessage(String recipient, String message) throws DatagramMissingSenderReceiverException {
-    Datagram datagram = new Datagram(Datagram.DATA_TYPE.MESSAGE, NAME, recipient, message);
-
-    this.SEND_DATAGRAMS.add(datagram);
-  }
-
-  /**
-   * Send message to the default recipient
-   *
-   * @param message should be less than 120 characters
-   * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
-   */
-  public void sendMessage(String message) throws DatagramMissingSenderReceiverException {
-    Datagram datagram = new Datagram(Datagram.DATA_TYPE.MESSAGE, NAME, DEFAULT_RECIPIENT, message);
+  public void sendMessage(String receiver, String message) throws DatagramMissingSenderReceiverException {
+    String r = receiver == null ? DEFAULT_RECIPIENT : receiver;
+    Datagram datagram = new Datagram(Datagram.DATA_TYPE.MESSAGE, NAME, r, message);
 
     this.SEND_DATAGRAMS.add(datagram);
   }
@@ -229,31 +209,6 @@ public class ClientConnectionManager {
   public void sendRequest(String requestType, String receiver, String data) throws DatagramMissingSenderReceiverException {
     String r = receiver == null ? DEFAULT_RECIPIENT : receiver;
     Datagram datagram = new Datagram(Datagram.DATA_TYPE.OTHER, requestType, NAME, r, data);
-
-    this.SEND_DATAGRAMS.add(datagram);
-  }
-
-  /**
-   * Send request
-   *
-   * @param receiver
-   * @param requestType
-   * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
-   */
-  public void sendRequest(String requestType, String receiver) throws DatagramMissingSenderReceiverException {
-    Datagram datagram = new Datagram(requestType, NAME, receiver);
-
-    this.SEND_DATAGRAMS.add(datagram);
-  }
-
-  /**
-   * Send request
-   *
-   * @param requestType
-   * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
-   */
-  public void sendRequest(String requestType) throws DatagramMissingSenderReceiverException {
-    Datagram datagram = new Datagram(requestType, NAME, DEFAULT_RECIPIENT);
 
     this.SEND_DATAGRAMS.add(datagram);
   }
