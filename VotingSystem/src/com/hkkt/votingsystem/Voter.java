@@ -151,7 +151,7 @@ public class Voter {
     this.CLA_CONN.sendRequest(VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString(), null, this.ID);
   }
 
-  public void cleanup() throws IOException {
+  public void cleanup() {
     this.CLA_CONN.cleanup();
     this.CTF_CONN.cleanup();
   }
