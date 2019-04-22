@@ -32,8 +32,8 @@ import java.util.Objects;
  * @author Kent Tsuenchy
  */
 public class Datagram {
+  public static final int MAX_DATA_LENGTH = 120;
   public static final String STRING_ENCODING = "ISO-8859-1";
-  protected static final int MAX_DATA_LENGTH = 120;
   protected static final int MAX_TIMESTAMP_LENGTH = 24;
   protected static final int MAX_TYPE_LENGTH = 15;
   protected static final int MAX_TYPE_OTHER_LENGTH = 25;
