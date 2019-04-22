@@ -28,7 +28,10 @@ import com.hkkt.CentralTabulationFacility.CTF;
 import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -37,6 +40,65 @@ import java.util.logging.Logger;
  * @author Hassan Khan
  */
 public class VotingSystem {
+  private final ArrayList<String> BALLOT_OPTIONS;
+  private final InetSocketAddress CLA_ADDRESS;
+  private final CLA CLA_FACILITY;
+  private final InetSocketAddress CTF_ADDRESS;
+  private final CTF CTF_FACILITY;
+  private final int MAX_VOTERS;
+  private final ArrayList<Voter> VOTERS;
+  private final List<Runnable> TASKS;
+
+  public VotingSystem(int numVoters, ArrayList<String> ballotOptions, InetSocketAddress claAddress, InetSocketAddress ctfAddress) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException {
+    this.MAX_VOTERS = numVoters;
+
+    this.CLA_FACILITY = new CLA("cla", claAddress, numVoters);
+    this.CTF_FACILITY = new CTF("ctf", ctfAddress, numVoters, ballotOptions);
+
+    this.CLA_ADDRESS = claAddress;
+    this.CTF_ADDRESS = ctfAddress;
+
+    this.CLA_FACILITY.connectToCTF(ctfAddress);
+    this.CTF_FACILITY.connectToCLA(claAddress);
+
+    this.VOTERS = new ArrayList<>();
+    this.BALLOT_OPTIONS = ballotOptions;
+
+    this.TASKS = Collections.synchronizedList(new ArrayList<Runnable>());
+
+    this.CTF_FACILITY.whenReady(() -> {
+      System.out.println("Voting system tasks: " + TASKS.size());
+      for (Runnable task : TASKS)
+        task.run();
+      TASKS.clear();
+    });
+  }
+
+  public boolean addVoter(String name) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
+    if (this.VOTERS.size() < this.MAX_VOTERS + 1) {
+      this.VOTERS.add(new Voter(name, this.CLA_ADDRESS, this.CTF_ADDRESS));
+      return true;
+    }
+
+    return false;
+  }
+
+  public ArrayList<String> getBallotOptions() {
+    return this.BALLOT_OPTIONS;
+  }
+
+  public ArrayList<Voter> getVoters() {
+    return this.VOTERS;
+  }
+
+  public void whenSystemReady(Runnable task) {
+    if (!this.CTF_FACILITY.isReady())
+      synchronized (this.TASKS) {
+        this.TASKS.add(task);
+      }
+    else
+      task.run();
+  }
 
   /**
    * @param args the command line arguments
@@ -46,31 +108,31 @@ public class VotingSystem {
    */
   public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
     // TODO code application logic here
-    int claPort = 5000, ctfPort = 6000;
-//    String voterId = "voter";
-    CLA cla = new CLA("cla", claPort);
-    CTF ctf = new CTF("ctf", ctfPort);
-    ArrayList<Voter> voters = new ArrayList<>();
+    InetSocketAddress claAddress = new InetSocketAddress("localhost", 5000);
+    InetSocketAddress ctfAddress = new InetSocketAddress("localhost", 6000);
     ArrayList<String> ballotOptions = new ArrayList<>();
-
-    voters.add(new Voter("voterA", claPort, ctfPort));
-    voters.add(new Voter("voterB", claPort, ctfPort));
-    voters.add(new Voter("voterC", claPort, ctfPort));
+    int maxVoters = 500;
 
     ballotOptions.add("HITLER");
     ballotOptions.add("STALIN");
     ballotOptions.add("MUMU");
+    ballotOptions.add("NAPOLEAN");
+    ballotOptions.add("JULIUS");
 
-    cla.connectToCTF(ctfPort);
-    ctf.connectToCLA(claPort);
+    VotingSystem system = new VotingSystem(maxVoters, ballotOptions, claAddress, ctfAddress);
 
-    voters.forEach(v -> {
+    for (int i = 0; i < maxVoters; i++)
+      system.addVoter("voter" + i);
+
+    system.getVoters().forEach(v -> {
       v.whenFree(() -> {
-        try {
-          v.submitVote(ballotOptions.get((int) (Math.random() * ballotOptions.size())));
-        } catch (DatagramMissingSenderReceiverException ex) {
-          Logger.getLogger(VotingSystem.class.getName()).log(Level.SEVERE, null, ex);
-        }
+        system.whenSystemReady(() -> {
+          try {
+            v.submitVote(ballotOptions.get((int) (Math.random() * ballotOptions.size())));
+          } catch (DatagramMissingSenderReceiverException ex) {
+            Logger.getLogger(VotingSystem.class.getName()).log(Level.SEVERE, null, ex);
+          }
+        });
       }, VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM);
     });
   }

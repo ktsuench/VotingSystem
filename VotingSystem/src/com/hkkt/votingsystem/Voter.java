@@ -23,17 +23,16 @@
  */
 package com.hkkt.votingsystem;
 
-import com.hkkt.CentralLegitimizationAgency.CLA;
-import com.hkkt.CentralTabulationFacility.CTF;
 import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
 import com.hkkt.util.Hook;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -44,20 +43,6 @@ import java.util.logging.Logger;
 public class Voter {
   private static final Logger LOG = Logger.getLogger(Voter.class.getName());
 
-  /**
-   * @param args the command line arguments
-   * @throws java.io.IOException
-   * @throws com.hkkt.communication.ChannelSelectorCannotStartException
-   * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
-   */
-  public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
-    int claPort = 5000, ctfPort = 6000;
-    String voterId = "voter";
-    CLA cla = new CLA("cla", claPort);
-    CTF ctf = new CTF("ctf", ctfPort);
-    Voter voter = new Voter(voterId, claPort, ctfPort);
-  }
-
   private final ClientConnectionManager CLA_CONN;
   private final Hook CLA_HOOK;
   private final ClientConnectionManager CTF_CONN;
@@ -67,16 +52,16 @@ public class Voter {
   private boolean requestInProgress;
   private int validationNum;
   private boolean voteSubmitted = false;
-  private final HashMap<VotingDatagram.ACTION_TYPE, ArrayList<Runnable>> TASKS;
+  private final ConcurrentHashMap<VotingDatagram.ACTION_TYPE, ArrayList<Runnable>> TASKS;
 
-  public Voter(String id, int claPort, int ctfPort) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
+  public Voter(String id, InetSocketAddress claAddress, InetSocketAddress ctfAddress) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
     this.ID = id;
     this.VOTING_ID = (int) (Math.random() * Integer.MAX_VALUE);
 
-    this.TASKS = new HashMap<>();
+    this.TASKS = new ConcurrentHashMap<>();
 
-    this.CLA_CONN = new ClientConnectionManager(id, claPort);
-    this.CTF_CONN = new ClientConnectionManager(id, ctfPort);
+    this.CLA_CONN = new ClientConnectionManager(id, claAddress);
+    this.CTF_CONN = new ClientConnectionManager(id, ctfAddress);
 
     this.CLA_HOOK = new Hook() {
       private VotingDatagram data;
@@ -85,11 +70,12 @@ public class Voter {
       public void run() {
         boolean error = false;
         VotingDatagram.ACTION_TYPE action = this.data.getOperationType();
-        System.out.println(ID + " received message from " + this.data.getSender() + ": " + this.data.getData());
+        // System.out.println(ID + " received message from " + this.data.getSender() + ": " + this.data.getData());
 
         switch (action) {
           case REQUEST_VALIDATION_NUM:
             validationNum = Integer.parseInt(this.data.getData());
+            CLA_CONN.cleanup();
             break;
           default:
             String errorMsg = "Unknown response. " + ID + " cannot handle the response obtained from CLA.";
@@ -124,11 +110,14 @@ public class Voter {
       public void run() {
         boolean error = false;
         VotingDatagram.ACTION_TYPE action = this.data.getOperationType();
-        System.out.println(ID + " received message from " + this.data.getSender() + ": " + this.data.getData());
+        // System.out.println(ID + " received message from " + this.data.getSender() + ": " + this.data.getData());
 
         switch (action) {
           case SUBMIT_VOTE:
             voteSubmitted = Boolean.parseBoolean(this.data.getData());
+
+            if (voteSubmitted)
+              CTF_CONN.cleanup();
             break;
           default:
             String errorMsg = "Unknown response. " + ID + " cannot handle the response obtained from CTF.";
@@ -162,7 +151,7 @@ public class Voter {
     this.CLA_CONN.sendRequest(VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString(), null, this.ID);
   }
 
-  public void cleanup() {
+  public void cleanup() throws IOException {
     this.CLA_CONN.cleanup();
     this.CTF_CONN.cleanup();
   }

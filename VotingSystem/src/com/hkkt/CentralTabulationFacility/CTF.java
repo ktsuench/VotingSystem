@@ -29,11 +29,16 @@ import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
 import com.hkkt.communication.ServerConnectionManager;
 import com.hkkt.votingsystem.AbstractServer;
+import com.hkkt.votingsystem.VotingDatagram;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -42,15 +47,16 @@ import java.util.logging.Logger;
  * @author Hassan Khan
  */
 public class CTF extends AbstractServer {
+  private final ConcurrentHashMap<Integer, Integer> CROSSED_OFF;
+  private final String NAME;
+  private final int NUM_VOTERS;
+  private final ServerConnectionManager SERVER_MANAGER;
+  private final List<Integer> VALIDATION_TICKETS;
+  private final ConcurrentHashMap<String, ArrayList<Integer>> VOTE_RESULTS;
+  private final List<Runnable> TASKS;
   private ClientConnectionManager clientManager;
-  private final String name;
-  private final ServerConnectionManager serverManager;
-  private final HashMap<String, Long> validationTickets;
-  private final List<Long> crossedOff;
-  private final List<Integer> hitlerVote;
-  private final List<Integer> stalinVote;
-  private final List<Integer> mussoliniVote;
-  
+  private boolean publishingOutcome = false;
+
   /**
    * Constructs a Central Tabulation Facility
    *
@@ -62,13 +68,27 @@ public class CTF extends AbstractServer {
    * @throws IOException
    */
   public CTF(String name, InetSocketAddress address, int numVoters, ArrayList<String> ballotOptions) throws ChannelSelectorCannotStartException, IOException {
-    this.serverManager = new ServerConnectionManager(address, this);
-    this.name = name;
-    this.validationTickets = new HashMap<>();
-    this.crossedOff = new ArrayList();
-    this.hitlerVote = new ArrayList();
-    this.stalinVote = new ArrayList();
-    this.mussoliniVote = new ArrayList();
+    this.SERVER_MANAGER = new ServerConnectionManager(address, this);
+    this.NAME = name;
+    this.NUM_VOTERS = numVoters;
+    this.VALIDATION_TICKETS = Collections.synchronizedList(new ArrayList<Integer>());
+
+    this.CROSSED_OFF = new ConcurrentHashMap<>();
+    this.VOTE_RESULTS = new ConcurrentHashMap<>();
+    this.TASKS = Collections.synchronizedList(new ArrayList<Runnable>());
+
+    ballotOptions.forEach(option -> VOTE_RESULTS.put(option.toUpperCase(), new ArrayList<>()));
+  }
+
+  public void addVoteTally(int idNum, String vote) {
+    // System.out.println("Voted for " + vote.toUpperCase());
+    this.VOTE_RESULTS.get(vote.toUpperCase()).add(idNum);
+  }
+
+  public boolean checkValNum(int valNum) {
+    synchronized (this.VALIDATION_TICKETS) {
+      return this.VALIDATION_TICKETS.contains(valNum);
+    }
   }
 
   /**
@@ -83,108 +103,125 @@ public class CTF extends AbstractServer {
     this.clientManager = new ClientConnectionManager(this.NAME, address);
   }
 
+  public void crossValNum(int id, int validNum) {
+    this.CROSSED_OFF.put(id, validNum);
+    // System.out.println(this.CROSSED_OFF.mappingCount());
+  }
+
   /**
    * Method for CTF to handle incoming data
    *
    * @param datagram data that has been sent to the CTF
    */
-  
-  public boolean checkValNum(long valNum){
-    boolean inHashList = this.validationTickets.containsValue(valNum);
-    return inHashList;
-  }
-  
-  public void addVoteTally(int idNum, String vote){
-          
-    switch(vote.toUpperCase()){
-          case "HITLER":
-            hitlerVote.add(idNum);
-            System.out.println("Voted Hitler");
-            break;
-          case "STALIN":
-            stalinVote.add(idNum);
-            System.out.println("Voted Stalin");
-            break;
-          case "MUSSOLINI": 
-            mussoliniVote.add(idNum);
-            System.out.println("Voted Mumu");
-            break;      
-                  
-        }
-  
-  }
-  
-  public void crossValNum(long validNum){
-    crossedOff.add(validNum);
-  }
-  
-  public void printList(List list){
-    for(int i = 0; i < list.size(); i++){
-      System.out.println(list.get(i).toString());
-    }
-  
-  }
-  
-  public void publishOutcome(){
-    String winner = "tie";
-    if(hitlerVote.size() > stalinVote.size() && hitlerVote.size() > mussoliniVote.size())
-      winner = "hitler";
-    if(stalinVote.size() > hitlerVote.size() && stalinVote.size() > mussoliniVote.size())
-      winner = "stalin";
-    if(mussoliniVote.size() > hitlerVote.size() && mussoliniVote.size() > stalinVote.size())
-      winner = "mussolini";
-    switch(winner){
-      case "hitler":
-        System.out.println("Hitler has won the election, hail the Furher!");
-        break;
-      case "stalin":
-        System.out.println("Stalin has won the election, The Man of Steel reigns!");
-        break;
-      case "mussolini":
-        System.out.println("Mussolini has won the election, Il Duce Conduce!");
-        break;
-      case "tie":
-        System.out.println("Democracy failed, The states will go to war!");
-        break;
-    }
-    System.out.println("The ID's of the people who voted for Hitler is all follows: ");
-    printList(hitlerVote);
-    System.out.println("The ID's of the people who voted for Stalin is all follows: ");
-    printList(stalinVote);
-    System.out.println("The ID's of the people who voted for Mussolini is all follows: ");
-    printList(mussoliniVote);
-    
-  }
-  
   @Override
   public void handleDatagram(Datagram datagram) {
-    System.out.println(this.name + " received message from " + datagram.getSender() + ": " + datagram.getData());
-    
-    this.validationTickets.put("bobbity", Long.parseLong("100"));
-    this.validationTickets.put("joseph", Long.parseLong("200"));
-    this.validationTickets.put("GerMan", Long.parseLong("400"));
     try {
-      Datagram echo = new Datagram(Datagram.DATA_TYPE.MESSAGE, this.name, datagram.getSender(), datagram.getData());
-      this.serverManager.addDatagramToQueue(datagram.getSender(), echo);
-      String[] arrInfo = new String[3];
-      arrInfo = datagram.getData().split("\\s+",3);
-      int randIdRecieved = Integer.parseInt(arrInfo[0]);
-      long valNumRecieved = Long.parseLong(arrInfo[1]);
-      String voteRecieved = arrInfo[2];
-      
-      //check validation number
-      if(checkValNum(valNumRecieved) == true && crossedOff.contains(valNumRecieved) == false){
-        //validation number is valid and number is not in crossed off list
-        addVoteTally(randIdRecieved, voteRecieved);
-        crossValNum(valNumRecieved);
+      if (VotingDatagram.isVotingSystemDatagram(datagram)) {
+        VotingDatagram votingDatagram = new VotingDatagram(datagram);
+        Datagram response = null;
+
+        switch (votingDatagram.getOperationType()) {
+          case SEND_VALIDATION_LIST:
+            System.out.println(votingDatagram.getData());
+
+            String[] data = votingDatagram.getData().split("\\s+");
+
+            synchronized (this.VALIDATION_TICKETS) {
+              for (String id : data)
+                if (!this.VALIDATION_TICKETS.contains(Integer.parseInt(id)))
+                  this.VALIDATION_TICKETS.add(Integer.parseInt(id));
+
+              if (this.VALIDATION_TICKETS.size() == NUM_VOTERS) {
+                for (Runnable task : this.TASKS)
+                  task.run();
+                this.TASKS.clear();
+              }
+            }
+            // response = votingDatagram.flip(data);
+            break;
+          case SUBMIT_VOTE:
+            String[] arrInfo = votingDatagram.getData().split("\\s+", 3);
+            int randIdReceived = Integer.parseInt(arrInfo[0]);
+            int valNumReceived = Integer.parseInt(arrInfo[1]);
+            String voteReceived = arrInfo[2];
+
+            if (checkValNum(valNumReceived) == true && CROSSED_OFF.containsValue(valNumReceived) == false) {
+              //validation number is valid and number is not in crossed off list
+              addVoteTally(randIdReceived, voteReceived);
+              crossValNum(randIdReceived, valNumReceived);
+              response = votingDatagram.flip(Boolean.toString(true));
+            } else
+              response = votingDatagram.flip(Boolean.toString(false));
+
+            if (CROSSED_OFF.mappingCount() == this.NUM_VOTERS && !publishingOutcome)
+              publishOutcome();
+            break;
+          default:
+            String errorMsg = "Unknown request. CTF cannot handle the requested operation.";
+            response = datagram.flip(errorMsg, Datagram.DATA_TYPE.ERROR);
+            break;
+        }
+
+        if (response != null)
+          this.SERVER_MANAGER.addDatagramToQueue(response.getReceiver(), response);
       }
-      
-      if(crossedOff.size() == 3){
-        publishOutcome();
-      }
-      
-    } catch (DatagramMissingSenderReceiverException ex) {
+    } catch (UnsupportedEncodingException | DatagramMissingSenderReceiverException ex) {
       Logger.getLogger(CTF.class.getName()).log(Level.SEVERE, null, ex);
+    }
+  }
+
+  public boolean isReady() {
+    synchronized (this.VALIDATION_TICKETS) {
+      return this.VALIDATION_TICKETS.size() == NUM_VOTERS;
+    }
+  }
+
+  public void printList(List list) {
+    for (Object list1 : list)
+      System.out.println(list1.toString());
+  }
+
+  public void publishOutcome() {
+    ArrayList<String> winner = new ArrayList<>();
+    int greatestVote = 0;
+
+    publishingOutcome = true;
+
+    for (Map.Entry<String, ArrayList<Integer>> entry : this.VOTE_RESULTS.entrySet())
+      if (entry.getValue().size() > greatestVote) {
+        winner.clear();
+        winner.add(entry.getKey());
+        greatestVote = entry.getValue().size();
+      } else if (entry.getValue().size() == greatestVote)
+        winner.add(entry.getKey());
+
+    if (winner.size() == 1)
+      System.out.println(winner.get(0) + " has won the election with " + greatestVote + " votes.");
+    else {
+      Iterator<String> it = winner.iterator();
+      String name;
+
+      while (it.hasNext()) {
+        name = it.next();
+
+        if (it.hasNext())
+          System.out.print(name + ", ");
+        else
+          System.out.print("and " + name + " ");
+      }
+
+      System.out.println("has tied in the election, each with " + greatestVote + " votes.");
+    }
+
+    this.VOTE_RESULTS.forEach((name, list) -> {
+      System.out.println("The ID's of the " + list.size() + " people who voted for " + name + " is all follows: ");
+      printList(list);
+    });
+  }
+
+  public void whenReady(Runnable task) {
+    synchronized (this.TASKS) {
+      this.TASKS.add(task);
     }
   }
 }
