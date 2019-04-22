@@ -91,22 +91,24 @@ public class CTF extends AbstractServer {
     return inHashList;
   }
   
-  public void addVoteTally(int idNum, String vote){
+  public boolean addVoteTally(int idNum, String vote){
           
     switch(vote.toUpperCase()){
           case "HITLER":
             hitlerVote.add(idNum);
             System.out.println("Voted Hitler");
-            break;
+            return true;
           case "STALIN":
             stalinVote.add(idNum);
             System.out.println("Voted Stalin");
-            break;
+            return true;
           case "MUSSOLINI": 
             mussoliniVote.add(idNum);
-            System.out.println("Voted Mumu");
-            break;      
-                  
+            System.out.println("Voted Mussolini");
+            return true;
+          default :
+            System.out.println("No Vote Registered, Option does not exist");
+            return false;      
         }
   
   }
@@ -157,9 +159,9 @@ public class CTF extends AbstractServer {
   public void handleDatagram(Datagram datagram) {
     System.out.println(this.name + " received message from " + datagram.getSender() + ": " + datagram.getData());
     
-    this.validationTickets.put("bobbity", Long.parseLong("100"));
-    this.validationTickets.put("joseph", Long.parseLong("200"));
-    this.validationTickets.put("GerMan", Long.parseLong("400"));
+//    this.validationTickets.put("bobbity", Long.parseLong("100"));
+//    this.validationTickets.put("joseph", Long.parseLong("200"));
+//    this.validationTickets.put("GerMan", Long.parseLong("400"));
     try {
       Datagram echo = new Datagram(Datagram.DATA_TYPE.MESSAGE, this.name, datagram.getSender(), datagram.getData());
       this.serverManager.addDatagramToQueue(datagram.getSender(), echo);
@@ -170,10 +172,12 @@ public class CTF extends AbstractServer {
       String voteRecieved = arrInfo[2];
       
       //check validation number
-      if(checkValNum(valNumRecieved) == true && crossedOff.contains(valNumRecieved) == false){
+      //TODO: remove the val num check after val table is added to ctf
+      if(/*checkValNum(valNumRecieved) == true &&*/ crossedOff.contains(valNumRecieved) == false){
         //validation number is valid and number is not in crossed off list
-        addVoteTally(randIdRecieved, voteRecieved);
-        crossValNum(valNumRecieved);
+        boolean voteEntered = addVoteTally(randIdRecieved, voteRecieved);
+        if(voteEntered == true)
+          crossValNum(valNumRecieved);
       }
       
       if(crossedOff.size() == 3){

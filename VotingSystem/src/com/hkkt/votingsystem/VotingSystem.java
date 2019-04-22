@@ -59,7 +59,7 @@ public class VotingSystem {
 
     ballotOptions.add("HITLER");
     ballotOptions.add("STALIN");
-    ballotOptions.add("MUMU");
+    ballotOptions.add("MUSSOLINI");
 
     cla.connectToCTF(ctfPort);
     ctf.connectToCLA(claPort);
