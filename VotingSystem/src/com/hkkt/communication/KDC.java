@@ -43,7 +43,6 @@ import javax.crypto.SecretKey;
 public class KDC {
   public static final String DES_ENCRYPTION_STANDARD = "DES/ECB/PKCS5Padding";
   public static final String ENCODING_STANDARD = "ISO-8859-1";
-  public static final String KDC_NAME = "KDC";
   public static final String RSA_ENCRYPTION_STANDARD = "RSA/ECB/PKCS1Padding";
   public static final String RSA_SIGNATURE_STANDARD = "SHA256withRSA";
   private static Cipher cipher;
@@ -91,15 +90,21 @@ public class KDC {
     byte[] encryptedKey = null;
 
     if (sharedKeys.contains(requester)) {
-      PublicKey key = id.equals(KDC_NAME) ? publicKey : keys.get(id);
+      PublicKey key = keys.get(id);
 
-      cipher = Cipher.getInstance(DES_ENCRYPTION_STANDARD);
+      if (key != null) {
+        cipher = Cipher.getInstance(DES_ENCRYPTION_STANDARD);
 
-      cipher.init(Cipher.WRAP_MODE, sharedKeys.get(requester));
-      encryptedKey = cipher.wrap(key);
+        cipher.init(Cipher.WRAP_MODE, sharedKeys.get(requester));
+        encryptedKey = cipher.wrap(key);
+      }
     }
 
     return encryptedKey;
+  }
+
+  public PublicKey getPublicKey() {
+    return publicKey;
   }
 
   public byte[] getSharedKey(String id) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException {
