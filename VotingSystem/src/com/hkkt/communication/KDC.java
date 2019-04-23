@@ -75,12 +75,12 @@ public class KDC {
   }
 
   public void addKey(String id, byte[] encryptedKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
-    if (sharedKeys.contains(id)) {
+    if (sharedKeys.containsKey(id)) {
       PublicKey key;
 
       cipher = Cipher.getInstance(DES_ENCRYPTION_STANDARD);
       cipher.init(Cipher.UNWRAP_MODE, sharedKeys.get(id));
-      key = (PublicKey) cipher.unwrap(encryptedKey, "DES", Cipher.PUBLIC_KEY);
+      key = (PublicKey) cipher.unwrap(encryptedKey, "RSA", Cipher.PUBLIC_KEY);
 
       keys.put(id, key);
     }
@@ -89,7 +89,7 @@ public class KDC {
   public byte[] getKey(String requester, String id) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException {
     byte[] encryptedKey = null;
 
-    if (sharedKeys.contains(requester)) {
+    if (sharedKeys.containsKey(requester)) {
       PublicKey key = keys.get(id);
 
       if (key != null) {
