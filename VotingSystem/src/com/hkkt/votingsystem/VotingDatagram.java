@@ -43,7 +43,7 @@ public class VotingDatagram extends Datagram {
     String receiver;
     ACTION_TYPE otherType;
     Instant timestamp;
-    String data;
+    byte[] data;
 
     sender = temp.substring(0, pad).trim();
     receiver = temp.substring(pad, pad * 2).trim();
@@ -52,7 +52,7 @@ public class VotingDatagram extends Datagram {
     pad += MAX_TYPE_OTHER_LENGTH;
     timestamp = Instant.parse(temp.substring(pad, pad + MAX_TIMESTAMP_LENGTH).trim());
     pad += MAX_TIMESTAMP_LENGTH;
-    data = temp.substring(pad).trim();
+    data = temp.substring(pad).trim().getBytes(STRING_ENCODING);
 
     return new VotingDatagram(otherType, sender, receiver, data, timestamp);
   }
@@ -71,12 +71,12 @@ public class VotingDatagram extends Datagram {
 
   protected final ACTION_TYPE OP_TYPE;
 
-  public VotingDatagram(ACTION_TYPE type, String sender, String receiver, String data, Instant timestamp) throws DatagramMissingSenderReceiverException {
+  public VotingDatagram(ACTION_TYPE type, String sender, String receiver, byte[] data, Instant timestamp) throws DatagramMissingSenderReceiverException {
     super(Datagram.DATA_TYPE.OTHER, type.toString(), sender, receiver, data, timestamp);
     this.OP_TYPE = type;
   }
 
-  public VotingDatagram(ACTION_TYPE type, String sender, String receiver, String data) throws DatagramMissingSenderReceiverException {
+  public VotingDatagram(ACTION_TYPE type, String sender, String receiver, byte[] data) throws DatagramMissingSenderReceiverException {
     this(type, sender, receiver, data, Instant.now());
   }
 
@@ -110,7 +110,7 @@ public class VotingDatagram extends Datagram {
     temp += String.format("%-" + MAX_TYPE_LENGTH + "s", this.TYPE.toString());
     temp += String.format("%-" + MAX_TYPE_OTHER_LENGTH + "s", this.OP_TYPE.toString());
     temp += String.format("%-" + MAX_TIMESTAMP_LENGTH + "s", this.TIMESTAMP.toString());
-    temp += String.format("%-" + MAX_DATA_LENGTH + "s", this.DATA);
+    temp += String.format("%-" + MAX_DATA_LENGTH + "s", new String(this.DATA));
 
     return temp.getBytes(STRING_ENCODING);
   }
@@ -119,13 +119,13 @@ public class VotingDatagram extends Datagram {
     return this.OP_TYPE;
   }
 
-  public VotingDatagram flip(String data, ACTION_TYPE type) throws DatagramMissingSenderReceiverException {
-    String d = data == null ? this.DATA : data;
+  public VotingDatagram flip(byte[] data, ACTION_TYPE type) throws DatagramMissingSenderReceiverException {
+    byte[] d = data == null ? this.DATA : data;
     return new VotingDatagram(type, this.RECEIVER_ID, this.SENDER_ID, d);
   }
 
   @Override
-  public VotingDatagram flip(String data) throws DatagramMissingSenderReceiverException {
+  public VotingDatagram flip(byte[] data) throws DatagramMissingSenderReceiverException {
     return this.flip(data, this.OP_TYPE);
   }
 

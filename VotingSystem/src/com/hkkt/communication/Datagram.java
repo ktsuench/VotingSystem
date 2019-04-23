@@ -46,7 +46,7 @@ public class Datagram {
     DATA_TYPE type;
     String otherType;
     Instant timestamp;
-    String data;
+    byte[] data;
 
     sender = temp.substring(0, pad).trim();
     receiver = temp.substring(pad, pad * 2).trim();
@@ -56,19 +56,19 @@ public class Datagram {
     pad += MAX_TYPE_OTHER_LENGTH;
     timestamp = Instant.parse(temp.substring(pad, pad + MAX_TIMESTAMP_LENGTH).trim());
     pad += MAX_TIMESTAMP_LENGTH;
-    data = temp.substring(pad).trim();
+    data = temp.substring(pad).trim().getBytes(STRING_ENCODING);
 
     return new Datagram(type, otherType, sender, receiver, data, timestamp);
   }
 
-  protected final String DATA;
+  protected final byte[] DATA;
   protected final String RECEIVER_ID;
   protected final String SENDER_ID;
   protected final Instant TIMESTAMP;
   protected final DATA_TYPE TYPE;
   protected final String TYPE_OTHER;
 
-  public Datagram(DATA_TYPE type, String otherType, String sender, String receiver, String data, Instant timestamp) throws DatagramMissingSenderReceiverException {
+  public Datagram(DATA_TYPE type, String otherType, String sender, String receiver, byte[] data, Instant timestamp) throws DatagramMissingSenderReceiverException {
     if (sender == null || receiver == null)
       throw new DatagramMissingSenderReceiverException();
 
@@ -76,15 +76,15 @@ public class Datagram {
     this.TYPE_OTHER = otherType == null ? "" : otherType;
     this.SENDER_ID = sender;
     this.RECEIVER_ID = receiver;
-    this.DATA = data == null ? "" : data;
+    this.DATA = data == null ? new byte[0] : data;
     this.TIMESTAMP = timestamp;
   }
 
-  public Datagram(DATA_TYPE type, String otherType, String sender, String receiver, String data) throws DatagramMissingSenderReceiverException {
+  public Datagram(DATA_TYPE type, String otherType, String sender, String receiver, byte[] data) throws DatagramMissingSenderReceiverException {
     this(type, otherType, sender, receiver, data, Instant.now());
   }
 
-  public Datagram(DATA_TYPE type, String sender, String receiver, String data) throws DatagramMissingSenderReceiverException {
+  public Datagram(DATA_TYPE type, String sender, String receiver, byte[] data) throws DatagramMissingSenderReceiverException {
     this(type, null, sender, receiver, data, Instant.now());
   }
 
@@ -117,12 +117,12 @@ public class Datagram {
     temp += String.format("%-" + MAX_TYPE_LENGTH + "s", this.TYPE.toString());
     temp += String.format("%-" + MAX_TYPE_OTHER_LENGTH + "s", this.TYPE_OTHER);
     temp += String.format("%-" + MAX_TIMESTAMP_LENGTH + "s", this.TIMESTAMP.toString());
-    temp += String.format("%-" + MAX_DATA_LENGTH + "s", this.DATA);
+    temp += String.format("%-" + MAX_DATA_LENGTH + "s", new String(this.DATA));
 
     return temp.getBytes(STRING_ENCODING);
   }
 
-  public String getData() {
+  public byte[] getData() {
     return this.DATA;
   }
 
@@ -146,20 +146,20 @@ public class Datagram {
     return this.TYPE_OTHER;
   }
 
-  public Datagram flip(String data, DATA_TYPE type, String typeOther) throws DatagramMissingSenderReceiverException {
-    String d = data == null ? this.DATA : data;
+  public Datagram flip(byte[] data, DATA_TYPE type, String typeOther) throws DatagramMissingSenderReceiverException {
+    byte[] d = data == null ? this.DATA : data;
     return new Datagram(type, typeOther, this.RECEIVER_ID, this.SENDER_ID, d);
   }
 
-  public Datagram flip(String data, DATA_TYPE type) throws DatagramMissingSenderReceiverException {
-    return this.flip(data, DATA_TYPE.OTHER, null);
+  public Datagram flip(byte[] data, DATA_TYPE type) throws DatagramMissingSenderReceiverException {
+    return this.flip(data, type, null);
   }
 
-  public Datagram flip(String data, String type) throws DatagramMissingSenderReceiverException {
-    return this.flip(data, DATA_TYPE.OTHER, type);
+  public Datagram flip(byte[] data, String typeOther) throws DatagramMissingSenderReceiverException {
+    return this.flip(data, DATA_TYPE.OTHER, typeOther);
   }
 
-  public Datagram flip(String data) throws DatagramMissingSenderReceiverException {
+  public Datagram flip(byte[] data) throws DatagramMissingSenderReceiverException {
     return this.flip(data, this.TYPE, null);
   }
 
