@@ -116,6 +116,7 @@ public class Connection implements Runnable {
 
         if (data.getReceiver().equals(ServerConnectionManager.SERVER_NAME)) {
           if (data.getType() == Datagram.DATA_TYPE.UPDATE_ID)
+            // TODO shouldn't be using the sender name here, should be using the data!
             MANAGER.updateChannelId(name, data.getSender());
           else
             SERVER.handleDatagram(data);
