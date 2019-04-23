@@ -27,14 +27,23 @@ import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
+import com.hkkt.util.Encryptor;
 import com.hkkt.util.Hook;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
+import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
 
 /**
  *
@@ -48,20 +57,24 @@ public class Voter {
   private final ClientConnectionManager CTF_CONN;
   private final Hook CTF_HOOK;
   private final String ID;
+  private final KeyPair ENCRYPTION_KEYS;
+  private final SecretKey KDC_COMM_KEY;
   private final int VOTING_ID;
   private boolean requestInProgress;
   private int validationNum;
   private boolean voteSubmitted = false;
   private final ConcurrentHashMap<VotingDatagram.ACTION_TYPE, ArrayList<Runnable>> TASKS;
 
-  public Voter(String id, InetSocketAddress claAddress, InetSocketAddress ctfAddress) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
+  public Voter(String id, InetSocketAddress claAddress, InetSocketAddress ctfAddress) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
     this.ID = id;
     this.VOTING_ID = (int) (Math.random() * Integer.MAX_VALUE);
-
     this.TASKS = new ConcurrentHashMap<>();
 
-    this.CLA_CONN = new ClientConnectionManager(id, claAddress);
-    this.CTF_CONN = new ClientConnectionManager(id, ctfAddress);
+    this.ENCRYPTION_KEYS = Encryptor.getInstance().genKeyPair();
+    this.KDC_COMM_KEY = Encryptor.getInstance().registerWithKDC(id, this.ENCRYPTION_KEYS.getPublic());
+
+    this.CLA_CONN = new ClientConnectionManager(id, claAddress, this.ENCRYPTION_KEYS.getPrivate());
+    this.CTF_CONN = new ClientConnectionManager(id, ctfAddress, this.ENCRYPTION_KEYS.getPrivate());
 
     this.CLA_HOOK = new Hook() {
       private VotingDatagram data;
@@ -74,7 +87,7 @@ public class Voter {
 
         switch (action) {
           case REQUEST_VALIDATION_NUM:
-            validationNum = Integer.parseInt(this.data.getData());
+            // validationNum = Integer.parseInt(this.data.getData());
             CLA_CONN.cleanup();
             break;
           default:
@@ -114,7 +127,7 @@ public class Voter {
 
         switch (action) {
           case SUBMIT_VOTE:
-            voteSubmitted = Boolean.parseBoolean(this.data.getData());
+            // voteSubmitted = Boolean.parseBoolean(this.data.getData());
 
             if (voteSubmitted)
               CTF_CONN.cleanup();
@@ -148,7 +161,7 @@ public class Voter {
     this.CTF_CONN.addHook(CTF_HOOK);
 
     this.requestInProgress = true;
-    this.CLA_CONN.sendRequest(VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString(), null, this.ID);
+    //this.CLA_CONN.sendRequest(VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString(), null, this.ID);
   }
 
   public void cleanup() {
@@ -196,7 +209,7 @@ public class Voter {
 
   public void submitVote(String vote) throws DatagramMissingSenderReceiverException {
     String data = this.VOTING_ID + " " + this.validationNum + " " + vote;
-    this.CTF_CONN.sendRequest(VotingDatagram.ACTION_TYPE.SUBMIT_VOTE.toString(), null, data);
+    //this.CTF_CONN.sendRequest(VotingDatagram.ACTION_TYPE.SUBMIT_VOTE.toString(), null, data);
   }
 
   public void submitVote(int vote) throws DatagramMissingSenderReceiverException {
