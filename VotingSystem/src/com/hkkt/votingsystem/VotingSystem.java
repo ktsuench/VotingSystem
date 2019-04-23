@@ -28,12 +28,18 @@ import com.hkkt.CentralTabulationFacility.CTF;
 import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 /**
  *
@@ -74,7 +80,7 @@ public class VotingSystem {
     });
   }
 
-  public boolean addVoter(String name) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
+  public boolean addVoter(String name) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
     if (this.VOTERS.size() < this.MAX_VOTERS + 1) {
       this.VOTERS.add(new Voter(name, this.CLA_ADDRESS, this.CTF_ADDRESS));
       return true;
@@ -105,13 +111,19 @@ public class VotingSystem {
    * @throws java.io.IOException
    * @throws com.hkkt.communication.ChannelSelectorCannotStartException
    * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
+   * @throws java.security.NoSuchAlgorithmException
+   * @throws javax.crypto.NoSuchPaddingException
+   * @throws java.security.InvalidKeyException
+   * @throws javax.crypto.IllegalBlockSizeException
+   * @throws java.io.UnsupportedEncodingException
+   * @throws javax.crypto.BadPaddingException
    */
-  public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
+  public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
     // TODO code application logic here
     InetSocketAddress claAddress = new InetSocketAddress("localhost", 5000);
     InetSocketAddress ctfAddress = new InetSocketAddress("localhost", 6000);
     ArrayList<String> ballotOptions = new ArrayList<>();
-    int maxVoters = 200;
+    int maxVoters = 100;
 
     ballotOptions.add("HITLER");
     ballotOptions.add("STALIN");

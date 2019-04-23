@@ -132,7 +132,7 @@ public class CTF extends AbstractServer {
           case SEND_VALIDATION_LIST:
             System.out.println(votingDatagram.getData());
 
-            String[] data = votingDatagram.getData().split("\\s+");
+            String[] data = {""};//votingDatagram.getData().split("\\s+");
 
             synchronized (this.VALIDATION_TICKETS) {
               for (String id : data)
@@ -148,28 +148,28 @@ public class CTF extends AbstractServer {
             // response = votingDatagram.flip(data);
             break;
           case SUBMIT_VOTE:
-            String[] arrInfo = votingDatagram.getData().split("\\s+", 3);
-            int randIdReceived = Integer.parseInt(arrInfo[0]);
-            int valNumReceived = Integer.parseInt(arrInfo[1]);
-            String voteReceived = arrInfo[2];
+            //String[] arrInfo = votingDatagram.getData().split("\\s+", 3);
+            int randIdReceived = 1;//Integer.parseInt(arrInfo[0]);
+            int valNumReceived = 1;//Integer.parseInt(arrInfo[1]);
+            String voteReceived = "";//arrInfo[2];
 
             //TODO: remove the val num check after val table is added to ctf
             if (/*checkValNum(valNumReceived) == true &&*/ CROSSED_OFF.containsValue(valNumReceived) == false)
               //validation number is valid and number is not in crossed off list
               if (addVoteTally(randIdReceived, voteReceived)) {
                 crossValNum(randIdReceived, valNumReceived);
-                response = votingDatagram.flip(Boolean.toString(true));
+                // response = votingDatagram.flip(Boolean.toString(true));
               } else
-                response = votingDatagram.flip(Boolean.toString(false));
-            else
-              response = votingDatagram.flip(Boolean.toString(false));
+                // response = votingDatagram.flip(Boolean.toString(false));
+            // else
+              // response = votingDatagram.flip(Boolean.toString(false));
 
             if (CROSSED_OFF.mappingCount() == this.NUM_VOTERS && !publishingOutcome)
               publishOutcome();
             break;
           default:
             String errorMsg = "Unknown request. CTF cannot handle the requested operation.";
-            response = datagram.flip(errorMsg, Datagram.DATA_TYPE.ERROR);
+            // response = datagram.flip(errorMsg, Datagram.DATA_TYPE.ERROR);
             break;
         }
 

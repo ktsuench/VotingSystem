@@ -24,13 +24,18 @@
 package com.hkkt.communication;
 
 import com.hkkt.util.DataObservable;
+import com.hkkt.util.Encryptor;
 import com.hkkt.util.Hook;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
 import java.util.Iterator;
 import java.util.Observer;
 import java.util.Set;
@@ -38,6 +43,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 /**
  *
@@ -55,17 +64,19 @@ public class ClientConnectionManager {
   private final TaskHandler TASK_HANDLER;
   private boolean channelActive;
   private boolean die;
+  private final PrivateKey encryptionKey;
 
   /**
    *
    * @param name should be less than 40 characters
    * @param address
+   * @param encryptionKey
    *
    * @throws IOException
    * @throws com.hkkt.communication.ChannelSelectorCannotStartException
    * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
-  public ClientConnectionManager(String name, InetSocketAddress address) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException {
+  public ClientConnectionManager(String name, InetSocketAddress address, PrivateKey encryptionKey) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
     this.HOOKS = new DataObservable();
     this.HOOKS_LIST = new ConcurrentHashMap<>();
     this.SEND_DATAGRAMS = new ConcurrentLinkedDeque<>();
@@ -139,8 +150,8 @@ public class ClientConnectionManager {
 
     this.TASK_HANDLER.startTask(selectorTask);
 
-    this.SEND_DATAGRAMS.add(new Datagram(Datagram.DATA_TYPE.UPDATE_ID, name, ServerConnectionManager.SERVER_NAME, name));
-
+    byte[] encryptedData = Encryptor.getInstance().encryptDecryptData(Cipher.ENCRYPT_MODE, name.getBytes(KDC.ENCODING_STANDARD), encryptionKey);
+    this.SEND_DATAGRAMS.add(new Datagram(Datagram.DATA_TYPE.UPDATE_ID, name, ServerConnectionManager.SERVER_NAME, encryptedData));
     this.CHANNEL.configureBlocking(false);
     this.CHANNEL.connect(address);
 
@@ -149,6 +160,7 @@ public class ClientConnectionManager {
       this.CHANNEL.finishConnect();
 
     this.CHANNEL.register(this.SELECTOR, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+    this.encryptionKey = encryptionKey;
   }
 
   public void addHook(Hook hook) {
@@ -191,7 +203,7 @@ public class ClientConnectionManager {
    * @param message should be less than 120 characters
    * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
-  public void sendMessage(String receiver, String message) throws DatagramMissingSenderReceiverException {
+  public void sendMessage(String receiver, byte[] message) throws DatagramMissingSenderReceiverException {
     String r = receiver == null ? DEFAULT_RECIPIENT : receiver;
     Datagram datagram = new Datagram(Datagram.DATA_TYPE.MESSAGE, NAME, r, message);
 
@@ -206,7 +218,7 @@ public class ClientConnectionManager {
    * @param data
    * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
-  public void sendRequest(String requestType, String receiver, String data) throws DatagramMissingSenderReceiverException {
+  public void sendRequest(String requestType, String receiver, byte[] data) throws DatagramMissingSenderReceiverException {
     String r = receiver == null ? DEFAULT_RECIPIENT : receiver;
     Datagram datagram = new Datagram(Datagram.DATA_TYPE.OTHER, requestType, NAME, r, data);
 
