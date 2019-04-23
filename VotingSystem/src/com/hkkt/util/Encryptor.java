@@ -63,6 +63,25 @@ public class Encryptor {
     pairKeyGen.initialize(2048);
   }
 
+  public Key decryptKey(byte[] sharedKey, Key key, String algorithm, int keyType) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
+    List acceptableKeyTypes = Arrays.asList(Cipher.PRIVATE_KEY, Cipher.PUBLIC_KEY, Cipher.SECRET_KEY);
+    Cipher cipher;
+
+    if (sharedKey.length < 1 || acceptableKeyTypes.indexOf(keyType) < 0)
+      return null;
+
+    if (key instanceof SecretKey)
+      cipher = Cipher.getInstance(KDC.DES_ENCRYPTION_STANDARD);
+    else if (key instanceof PublicKey || key instanceof PrivateKey)
+      cipher = Cipher.getInstance(KDC.RSA_ENCRYPTION_STANDARD);
+    else
+      return null;
+
+    cipher.init(Cipher.UNWRAP_MODE, key);
+
+    return cipher.unwrap(sharedKey, algorithm, keyType);
+  }
+
   public byte[] encryptDecryptData(int opmode, byte[] data, Key key) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
     List acceptableModes = Arrays.asList(Cipher.DECRYPT_MODE, Cipher.ENCRYPT_MODE);
     Cipher cipher;
@@ -80,6 +99,21 @@ public class Encryptor {
     cipher.init(opmode, key);
 
     return cipher.doFinal(data);
+  }
+
+  public byte[] encryptKey(Key sharedKey, Key key) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
+    Cipher cipher;
+
+    if (key instanceof SecretKey)
+      cipher = Cipher.getInstance(KDC.DES_ENCRYPTION_STANDARD);
+    else if (key instanceof PublicKey || key instanceof PrivateKey)
+      cipher = Cipher.getInstance(KDC.RSA_ENCRYPTION_STANDARD);
+    else
+      return null;
+
+    cipher.init(Cipher.WRAP_MODE, key);
+
+    return cipher.wrap(sharedKey);
   }
 
   public KeyPair genKeyPair() {
