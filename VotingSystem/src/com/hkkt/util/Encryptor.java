@@ -49,6 +49,7 @@ public class Encryptor {
   private static Encryptor instance;
   private static KeyPairGenerator pairKeyGen;
   private static KeyGenerator sharedKeyGen;
+  private static KDC kdc;
 
   public static Encryptor getInstance() throws NoSuchAlgorithmException {
     if (instance == null)
@@ -61,6 +62,7 @@ public class Encryptor {
     sharedKeyGen = KeyGenerator.getInstance("DES");
     pairKeyGen = KeyPairGenerator.getInstance("RSA");
     pairKeyGen.initialize(2048);
+    kdc = KDC.getInstance();
   }
 
   public Key decryptKey(byte[] sharedKey, Key key, String algorithm, int keyType) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
@@ -122,5 +124,14 @@ public class Encryptor {
 
   public SecretKey genSharedKey() {
     return sharedKeyGen.generateKey();
+  }
+
+  public SecretKey registerWithKDC(String id, PublicKey pubKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
+    byte[] encryptedKey = kdc.getSharedKey(id);
+    SecretKey key = (SecretKey) getInstance().decryptKey(encryptedKey, kdc.getPublicKey(), "DES", Cipher.SECRET_KEY);
+    encryptedKey = getInstance().encryptKey(pubKey, key);
+    kdc.addKey(id, encryptedKey);
+
+    return key;
   }
 }
