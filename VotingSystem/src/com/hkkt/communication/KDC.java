@@ -30,7 +30,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
@@ -45,7 +44,6 @@ public class KDC {
   public static final String DES_ENCRYPTION_STANDARD = "DES/ECB/PKCS5Padding";
   public static final String ENCODING_STANDARD = "ISO-8859-1";
   public static final String KDC_NAME = "KDC";
-  public static final Logger LOG = Logger.getLogger(KDC.class.getName());
   public static final String RSA_ENCRYPTION_STANDARD = "RSA/ECB/PKCS1Padding";
   public static final String RSA_SIGNATURE_STANDARD = "SHA256withRSA";
   private static Cipher cipher;
