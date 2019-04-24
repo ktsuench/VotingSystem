@@ -46,6 +46,8 @@ import javax.crypto.NoSuchPaddingException;
  * @author Hassan Khan
  */
 public class VotingSystem {
+  private static final String CLA_NAME = "cla";
+  private static final String CTF_NAME = "ctf";
   private final ArrayList<String> BALLOT_OPTIONS;
   private final InetSocketAddress CLA_ADDRESS;
   private final CLA CLA_FACILITY;
@@ -55,17 +57,17 @@ public class VotingSystem {
   private final ArrayList<Voter> VOTERS;
   private final List<Runnable> TASKS;
 
-  public VotingSystem(int numVoters, ArrayList<String> ballotOptions, InetSocketAddress claAddress, InetSocketAddress ctfAddress) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException {
+  public VotingSystem(int numVoters, ArrayList<String> ballotOptions, InetSocketAddress claAddress, InetSocketAddress ctfAddress) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
     this.MAX_VOTERS = numVoters;
 
-    this.CLA_FACILITY = new CLA("cla", claAddress, numVoters);
-    this.CTF_FACILITY = new CTF("ctf", ctfAddress, numVoters, ballotOptions);
+    this.CLA_FACILITY = new CLA(CLA_NAME, claAddress, numVoters);
+    this.CTF_FACILITY = new CTF(CTF_NAME, ctfAddress, numVoters, ballotOptions);
 
     this.CLA_ADDRESS = claAddress;
     this.CTF_ADDRESS = ctfAddress;
 
-    this.CLA_FACILITY.connectToCTF(ctfAddress);
-    this.CTF_FACILITY.connectToCLA(claAddress);
+    this.CLA_FACILITY.connectToCTF(CTF_NAME, ctfAddress);
+    this.CTF_FACILITY.connectToCLA(CLA_NAME, claAddress);
 
     this.VOTERS = new ArrayList<>();
     this.BALLOT_OPTIONS = ballotOptions;
@@ -82,7 +84,7 @@ public class VotingSystem {
 
   public boolean addVoter(String name) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
     if (this.VOTERS.size() < this.MAX_VOTERS + 1) {
-      this.VOTERS.add(new Voter(name, this.CLA_ADDRESS, this.CTF_ADDRESS));
+      this.VOTERS.add(new Voter(name, this.CLA_ADDRESS, this.CTF_ADDRESS, CLA_NAME, CTF_NAME));
       return true;
     }
 
@@ -118,12 +120,12 @@ public class VotingSystem {
    * @throws java.io.UnsupportedEncodingException
    * @throws javax.crypto.BadPaddingException
    */
-  public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
+  public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException, InterruptedException {
     // TODO code application logic here
     InetSocketAddress claAddress = new InetSocketAddress("localhost", 5000);
     InetSocketAddress ctfAddress = new InetSocketAddress("localhost", 6000);
     ArrayList<String> ballotOptions = new ArrayList<>();
-    int maxVoters = 100;
+    int maxVoters = 1;
 
     ballotOptions.add("HITLER");
     ballotOptions.add("STALIN");
@@ -133,6 +135,8 @@ public class VotingSystem {
 
     VotingSystem system = new VotingSystem(maxVoters, ballotOptions, claAddress, ctfAddress);
 
+    Thread.sleep(500);
+
     for (int i = 0; i < maxVoters; i++)
       system.addVoter("voter" + i);
 
@@ -141,7 +145,7 @@ public class VotingSystem {
         system.whenSystemReady(() -> {
           try {
             v.submitVote(ballotOptions.get((int) (Math.random() * ballotOptions.size())));
-          } catch (DatagramMissingSenderReceiverException ex) {
+          } catch (DatagramMissingSenderReceiverException | UnsupportedEncodingException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException ex) {
             Logger.getLogger(VotingSystem.class.getName()).log(Level.SEVERE, null, ex);
           }
         });

@@ -27,6 +27,7 @@ import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
+import com.hkkt.communication.KDC;
 import com.hkkt.util.Encryptor;
 import com.hkkt.util.Hook;
 import java.io.IOException;
@@ -35,12 +36,14 @@ import java.net.InetSocketAddress;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
@@ -54,18 +57,20 @@ public class Voter {
 
   private final ClientConnectionManager CLA_CONN;
   private final Hook CLA_HOOK;
+  private final String CLA_NAME;
   private final ClientConnectionManager CTF_CONN;
   private final Hook CTF_HOOK;
-  private final String ID;
+  private final String CTF_NAME;
   private final KeyPair ENCRYPTION_KEYS;
+  private final String ID;
   private final SecretKey KDC_COMM_KEY;
+  private final ConcurrentHashMap<VotingDatagram.ACTION_TYPE, ArrayList<Runnable>> TASKS;
   private final int VOTING_ID;
   private boolean requestInProgress;
   private int validationNum;
   private boolean voteSubmitted = false;
-  private final ConcurrentHashMap<VotingDatagram.ACTION_TYPE, ArrayList<Runnable>> TASKS;
 
-  public Voter(String id, InetSocketAddress claAddress, InetSocketAddress ctfAddress) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
+  public Voter(String id, InetSocketAddress claAddress, InetSocketAddress ctfAddress, String claName, String ctfName) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
     this.ID = id;
     this.VOTING_ID = (int) (Math.random() * Integer.MAX_VALUE);
     this.TASKS = new ConcurrentHashMap<>();
@@ -73,33 +78,43 @@ public class Voter {
     this.ENCRYPTION_KEYS = Encryptor.getInstance().genKeyPair();
     this.KDC_COMM_KEY = Encryptor.getInstance().registerWithKDC(id, this.ENCRYPTION_KEYS.getPublic());
 
-    this.CLA_CONN = new ClientConnectionManager(id, claAddress, this.ENCRYPTION_KEYS.getPrivate());
-    this.CTF_CONN = new ClientConnectionManager(id, ctfAddress, this.ENCRYPTION_KEYS.getPrivate());
+    this.CLA_NAME = claName;
+    this.CTF_NAME = ctfName;
+
+    byte[] encryptedId = this.encryptData(id.getBytes(Datagram.STRING_ENCODING), claName);
+    this.CLA_CONN = new ClientConnectionManager(id, encryptedId, claAddress);
+    encryptedId = this.encryptData(id.getBytes(Datagram.STRING_ENCODING), ctfName);
+    this.CTF_CONN = new ClientConnectionManager(id, encryptedId, ctfAddress);
 
     this.CLA_HOOK = new Hook() {
       private VotingDatagram data;
 
       @Override
       public void run() {
-        boolean error = false;
-        VotingDatagram.ACTION_TYPE action = this.data.getOperationType();
-        // System.out.println(ID + " received message from " + this.data.getSender() + ": " + this.data.getData());
+        try {
+          boolean error = false;
+          VotingDatagram.ACTION_TYPE action = this.data.getOperationType();
+          // System.out.println(ID + " received message from " + this.data.getSender() + ": " + this.data.getData());
 
-        switch (action) {
-          case REQUEST_VALIDATION_NUM:
-            // validationNum = Integer.parseInt(this.data.getData());
-            CLA_CONN.cleanup();
-            break;
-          default:
-            String errorMsg = "Unknown response. " + ID + " cannot handle the response obtained from CLA.";
-            error = true;
-            LOG.log(Level.SEVERE, errorMsg);
-            break;
-        }
+          switch (action) {
+            case REQUEST_VALIDATION_NUM:
+              String decryptedData = new String(decryptData(this.data.getData()), Datagram.STRING_ENCODING);
+              validationNum = Integer.parseInt(decryptedData);
+              CLA_CONN.cleanup();
+              break;
+            default:
+              String errorMsg = "Unknown response. " + ID + " cannot handle the response obtained from CLA.";
+              error = true;
+              LOG.log(Level.SEVERE, errorMsg);
+              break;
+          }
 
-        if (!error && TASKS.containsKey(action)) {
-          TASKS.get(action).forEach(task -> task.run());
-          TASKS.remove(action);
+          if (!error && TASKS.containsKey(action)) {
+            TASKS.get(action).forEach(task -> task.run());
+            TASKS.remove(action);
+          }
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException ex) {
+          Logger.getLogger(Voter.class.getName()).log(Level.SEVERE, null, ex);
         }
 
         requestInProgress = false;
@@ -121,28 +136,34 @@ public class Voter {
 
       @Override
       public void run() {
-        boolean error = false;
-        VotingDatagram.ACTION_TYPE action = this.data.getOperationType();
-        // System.out.println(ID + " received message from " + this.data.getSender() + ": " + this.data.getData());
+        try {
+          boolean error = false;
+          VotingDatagram.ACTION_TYPE action = this.data.getOperationType();
+          // System.out.println(ID + " received message from " + this.data.getSender() + ": " + this.data.getData());
 
-        switch (action) {
-          case SUBMIT_VOTE:
-            // voteSubmitted = Boolean.parseBoolean(this.data.getData());
+          switch (action) {
+            case SUBMIT_VOTE:
+              String decryptedData = new String(decryptData(this.data.getData()), Datagram.STRING_ENCODING);
+              voteSubmitted = Boolean.parseBoolean(decryptedData);
 
-            if (voteSubmitted)
-              CTF_CONN.cleanup();
-            break;
-          default:
-            String errorMsg = "Unknown response. " + ID + " cannot handle the response obtained from CTF.";
-            error = true;
-            LOG.log(Level.SEVERE, errorMsg);
-            break;
+              if (voteSubmitted)
+                CTF_CONN.cleanup();
+              break;
+            default:
+              String errorMsg = "Unknown response. " + ID + " cannot handle the response obtained from CTF.";
+              error = true;
+              LOG.log(Level.SEVERE, errorMsg);
+              break;
+          }
+
+          if (!error && TASKS.containsKey(action)) {
+            TASKS.get(action).forEach(task -> task.run());
+            TASKS.remove(action);
+          }
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException ex) {
+          Logger.getLogger(Voter.class.getName()).log(Level.SEVERE, null, ex);
         }
 
-        if (!error && TASKS.containsKey(action)) {
-          TASKS.get(action).forEach(task -> task.run());
-          TASKS.remove(action);
-        }
         requestInProgress = false;
       }
 
@@ -161,7 +182,8 @@ public class Voter {
     this.CTF_CONN.addHook(CTF_HOOK);
 
     this.requestInProgress = true;
-    //this.CLA_CONN.sendRequest(VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString(), null, this.ID);
+    encryptedId = this.encryptData(id.getBytes(Datagram.STRING_ENCODING), claName);
+    this.CLA_CONN.sendRequest(VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString(), null, encryptedId);
   }
 
   public void cleanup() {
@@ -203,16 +225,27 @@ public class Voter {
     return this.voteSubmitted;
   }
 
+  public void submitVote(String vote) throws DatagramMissingSenderReceiverException, UnsupportedEncodingException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+    String data = this.VOTING_ID + " " + this.validationNum + " " + vote;
+    byte[] encryptedData = this.encryptData(data.getBytes(Datagram.STRING_ENCODING), this.CTF_NAME);
+    this.CTF_CONN.sendRequest(VotingDatagram.ACTION_TYPE.SUBMIT_VOTE.toString(), null, encryptedData);
+  }
+
+  public void submitVote(int vote) throws DatagramMissingSenderReceiverException, UnsupportedEncodingException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+    this.submitVote(Integer.toString(vote));
+  }
+
   public void whenFree(Runnable task, VotingDatagram.ACTION_TYPE action) {
     this.TASKS.computeIfAbsent(action, key -> new ArrayList<>()).add(task);
   }
 
-  public void submitVote(String vote) throws DatagramMissingSenderReceiverException {
-    String data = this.VOTING_ID + " " + this.validationNum + " " + vote;
-    //this.CTF_CONN.sendRequest(VotingDatagram.ACTION_TYPE.SUBMIT_VOTE.toString(), null, data);
+  private byte[] decryptData(byte[] encryptedData) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
+    return Encryptor.getInstance().encryptDecryptData(Cipher.DECRYPT_MODE, encryptedData, this.ENCRYPTION_KEYS.getPrivate());
   }
 
-  public void submitVote(int vote) throws DatagramMissingSenderReceiverException {
-    this.submitVote(Integer.toString(vote));
+  private byte[] encryptData(byte[] plainData, String receiver) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
+    byte[] encryptedKey = KDC.getInstance().getKey(this.ID, receiver);
+    PublicKey key = (PublicKey) Encryptor.getInstance().decryptKey(encryptedKey, this.KDC_COMM_KEY, "RSA", Cipher.PUBLIC_KEY);
+    return Encryptor.getInstance().encryptDecryptData(Cipher.ENCRYPT_MODE, plainData, key);
   }
 }

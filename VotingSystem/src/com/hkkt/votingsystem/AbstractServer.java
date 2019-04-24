@@ -31,4 +31,5 @@ import com.hkkt.communication.Datagram;
  */
 public abstract class AbstractServer {
   public abstract void handleDatagram(Datagram datagram);
+  public abstract void updateConnectionName(String name, Datagram datagram);
 }

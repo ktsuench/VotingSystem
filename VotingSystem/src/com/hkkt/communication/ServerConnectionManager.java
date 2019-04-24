@@ -43,22 +43,22 @@ public class ServerConnectionManager {
   public static final String SERVER_NAME = "SERVER";
   private static final String DEFAULT_CHANNEL = "Default_Channel_Name";
   private static final Logger LOG = Logger.getLogger(ServerConnectionManager.class.getName());
-  private ConcurrentHashMap<String, SocketChannel> channels;
-  private ConcurrentHashMap<String, Connection> connections;
-  private ConcurrentHashMap<String, ConcurrentLinkedDeque<Datagram>> datagrams;
+  private final ConcurrentHashMap<String, SocketChannel> CHANNELS;
+  private final ConcurrentHashMap<String, Connection> CONNECTIONS;
+  private final ConcurrentHashMap<String, ConcurrentLinkedDeque<Datagram>> DATAGRAMS;
+  private final Selector SELECTOR;
+  private final TaskHandler TASK_HANDLER;
   private int defaultChannelId = 0;
-  private Selector selector;
   private ServerSocketChannel server = null;
-  private TaskHandler taskHandler;
 
   public ServerConnectionManager(InetSocketAddress address, AbstractServer root) throws ChannelSelectorCannotStartException {
-    this.channels = new ConcurrentHashMap<>();
-    this.connections = new ConcurrentHashMap<>();
-    this.datagrams = new ConcurrentHashMap<>();
-    this.taskHandler = new TaskHandler();
+    this.CHANNELS = new ConcurrentHashMap<>();
+    this.CONNECTIONS = new ConcurrentHashMap<>();
+    this.DATAGRAMS = new ConcurrentHashMap<>();
+    this.TASK_HANDLER = new TaskHandler();
 
     try {
-      this.selector = Selector.open();
+      this.SELECTOR = Selector.open();
     } catch (IOException ex) {
       LOG.log(Level.SEVERE, null, ex);
 
@@ -71,12 +71,12 @@ public class ServerConnectionManager {
         try {
           Thread.sleep(200);
 
-          int readyChannels = selector.selectNow();
+          int readyChannels = SELECTOR.selectNow();
 
           if (readyChannels == 0)
             continue;
 
-          Set<SelectionKey> selectedKeys = selector.selectedKeys();
+          Set<SelectionKey> selectedKeys = SELECTOR.selectedKeys();
           Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
 
           while (keyIterator.hasNext()) {
@@ -102,7 +102,7 @@ public class ServerConnectionManager {
             // LOG.log(Level.WARNING, "Unknown event fired for a channel found in selector.");
 
             if (startTask)
-              taskHandler.startTask(connection);
+              TASK_HANDLER.startTask(connection);
 
             keyIterator.remove();
           }
@@ -141,12 +141,12 @@ public class ServerConnectionManager {
             connection.toggleConnected();
 
             // register channel with selector to notify for the specified ready events
-            channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, connection);
+            channel.register(SELECTOR, SelectionKey.OP_READ | SelectionKey.OP_WRITE, connection);
             connection.toggleListening();
 
             // add to map for clean up later
-            channels.put(name, channel);
-            connections.put(name, connection);
+            CHANNELS.put(name, channel);
+            CONNECTIONS.put(name, connection);
           } catch (ClosedChannelException ex) {
             // break;
           } catch (IOException ex) {
@@ -161,15 +161,15 @@ public class ServerConnectionManager {
           }
       };
 
-      this.taskHandler.startTask(startListening);
-      this.taskHandler.startTask(selectorTask);
+      this.TASK_HANDLER.startTask(startListening);
+      this.TASK_HANDLER.startTask(selectorTask);
     } catch (IOException ex) {
       LOG.log(Level.SEVERE, null, ex);
     }
   }
 
   public void addDatagramToQueue(String name, Datagram data) {
-    this.datagrams.computeIfAbsent(name, key -> new ConcurrentLinkedDeque<>()).add(data);
+    this.DATAGRAMS.computeIfAbsent(name, key -> new ConcurrentLinkedDeque<>()).add(data);
   }
 
   /**
@@ -179,11 +179,11 @@ public class ServerConnectionManager {
    * operation.
    */
   public void cleanup() {
-    this.taskHandler.cleanup();
-    this.channels.forEach((taskName, channel) -> {
+    this.TASK_HANDLER.cleanup();
+    this.CHANNELS.forEach((taskName, channel) -> {
       try {
         // may return null if no key found for given selector
-        SelectionKey key = channel.keyFor(this.selector);
+        SelectionKey key = channel.keyFor(this.SELECTOR);
 
         // deregister the channel from the selector
         if (key != null)
@@ -195,11 +195,11 @@ public class ServerConnectionManager {
         LOG.log(Level.WARNING, null, ex);
       }
     });
-    this.connections.clear();
-    this.datagrams.clear();
+    this.CONNECTIONS.clear();
+    this.DATAGRAMS.clear();
 
     try {
-      this.selector.close();
+      this.SELECTOR.close();
     } catch (IOException ex) {
       // TODO log this to log file
       LOG.log(Level.WARNING, null, ex);
@@ -207,19 +207,19 @@ public class ServerConnectionManager {
   }
 
   public void clearDatagramFromQueue(String name) {
-    this.datagrams.remove(name);
+    this.DATAGRAMS.remove(name);
   }
 
   public SocketChannel getChannel(String name) {
-    return this.channels.get(name);
+    return this.CHANNELS.get(name);
   }
 
   public ConcurrentLinkedDeque<Datagram> getDatagrams(String name) {
-    return this.datagrams.get(name);
+    return this.DATAGRAMS.get(name);
   }
 
   public void removeDatagramFromQueue(String name, Datagram data) {
-    this.datagrams.computeIfPresent(name, (key, list) -> {
+    this.DATAGRAMS.computeIfPresent(name, (key, list) -> {
       list.remove(data);
       return list;
     });
@@ -236,16 +236,16 @@ public class ServerConnectionManager {
     if (newName.length() > MAX_NAME_LENGTH)
       return false;
 
-    if (this.channels.containsKey(oldName) && !this.channels.containsKey(newName)) {
-      this.channels.put(newName, this.channels.remove(oldName));
+    if (this.CHANNELS.containsKey(oldName) && !this.CHANNELS.containsKey(newName)) {
+      this.CHANNELS.put(newName, this.CHANNELS.remove(oldName));
 
-      this.connections.computeIfPresent(oldName, (key, conn) -> {
+      this.CONNECTIONS.computeIfPresent(oldName, (key, conn) -> {
         conn.setName(newName);
-        return this.connections.put(newName, conn);
+        return this.CONNECTIONS.put(newName, conn);
       });
 
-      this.datagrams.computeIfPresent(oldName, (key, data) -> {
-        return this.datagrams.put(newName, data);
+      this.DATAGRAMS.computeIfPresent(oldName, (key, data) -> {
+        return this.DATAGRAMS.put(newName, data);
       });
 
       return true;
@@ -260,7 +260,7 @@ public class ServerConnectionManager {
     do {
       name = DEFAULT_CHANNEL + "[" + this.defaultChannelId + "]";
       this.defaultChannelId++; // may cause overflow if max reached
-    } while (this.channels.containsKey(name));
+    } while (this.CHANNELS.containsKey(name));
 
     return name;
   }

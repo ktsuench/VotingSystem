@@ -27,6 +27,7 @@ import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
+import com.hkkt.communication.KDC;
 import com.hkkt.communication.ServerConnectionManager;
 import com.hkkt.util.Encryptor;
 import com.hkkt.votingsystem.AbstractServer;
@@ -37,11 +38,13 @@ import java.net.InetSocketAddress;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
@@ -53,10 +56,10 @@ import javax.crypto.SecretKey;
 public class CLA extends AbstractServer {
   public static final String VALIDATION_TICKET_DELIMETER = " ";
   private static final int VALIDATION_NUM_LIMIT = Integer.MAX_VALUE;
+  private final KeyPair ENCRYPTION_KEYS;
+  private final SecretKey KDC_COMM_KEY;
   private final String NAME;
   private final int NUM_VOTERS;
-    private final KeyPair ENCRYPTION_KEYS;
-  private final SecretKey KDC_COMM_KEY;
   private final ServerConnectionManager SERVER_MANAGER;
   private final ConcurrentHashMap<String, Integer> VALIDATION_TICKETS;
   private ClientConnectionManager clientManager;
@@ -90,6 +93,7 @@ public class CLA extends AbstractServer {
   /**
    * Connect to the Central Tabulation Facility
    *
+   * @param name
    * @param address the address that the CTF is located at
    * @throws ChannelSelectorCannotStartException
    * @throws IOException
@@ -101,8 +105,9 @@ public class CLA extends AbstractServer {
    * @throws javax.crypto.IllegalBlockSizeException
    * @throws javax.crypto.BadPaddingException
    */
-  public void connectToCTF(InetSocketAddress address) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
-    this.clientManager = new ClientConnectionManager(this.NAME, address, this.ENCRYPTION_KEYS.getPrivate());
+  public void connectToCTF(String name, InetSocketAddress address) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
+    byte[] nameBytes = this.NAME.getBytes(Datagram.STRING_ENCODING);
+    this.clientManager = new ClientConnectionManager(this.NAME, this.encryptData(nameBytes, name), address);
   }
 
   /**
@@ -116,28 +121,52 @@ public class CLA extends AbstractServer {
       if (VotingDatagram.isVotingSystemDatagram(datagram)) {
         VotingDatagram votingDatagram = new VotingDatagram(datagram);
         Datagram response = null;
+        byte[] dataToEncrypt, data;
 
         switch (votingDatagram.getOperationType()) {
           case REQUEST_VALIDATION_NUM:
-            // String data = Integer.toString(this.generateValidationTicket(votingDatagram.getData()));
-            // response = votingDatagram.flip(data);
+            String decryptedData = new String(decryptData(votingDatagram.getData()), Datagram.STRING_ENCODING);
+            dataToEncrypt = Integer.toString(this.generateValidationTicket(decryptedData)).getBytes(Datagram.STRING_ENCODING);
+            data = encryptData(dataToEncrypt, votingDatagram.getSender());
+            response = votingDatagram.flip(data);
             this.sendValidationTicketListToCTF();
             break;
           case SEND_VALIDATION_LIST:
             // do nothing
             break;
           default:
-            String errorMsg = "Unknown request. CLA cannot handle the requested operation.";
-            // response = datagram.flip(errorMsg, Datagram.DATA_TYPE.ERROR);
+            dataToEncrypt = "Unknown request. CLA cannot handle the requested operation.".getBytes(Datagram.STRING_ENCODING);
+            data = encryptData(dataToEncrypt, votingDatagram.getSender());
+            response = datagram.flip(data, Datagram.DATA_TYPE.ERROR);
             break;
         }
 
         if (response != null)
           this.SERVER_MANAGER.addDatagramToQueue(response.getReceiver(), response);
       }
-    } catch (UnsupportedEncodingException | DatagramMissingSenderReceiverException ex) {
+    } catch (UnsupportedEncodingException | DatagramMissingSenderReceiverException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException ex) {
       Logger.getLogger(CLA.class.getName()).log(Level.SEVERE, null, ex);
     }
+  }
+
+  @Override
+  public void updateConnectionName(String name, Datagram datagram) {
+    try {
+      String newName = new String(this.decryptData(datagram.getData()), Datagram.STRING_ENCODING);
+      this.SERVER_MANAGER.updateChannelId(name, newName);
+    } catch (UnsupportedEncodingException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException ex) {
+      Logger.getLogger(CLA.class.getName()).log(Level.SEVERE, null, ex);
+    }
+  }
+
+  private byte[] decryptData(byte[] encryptedData) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
+    return Encryptor.getInstance().encryptDecryptData(Cipher.DECRYPT_MODE, encryptedData, this.ENCRYPTION_KEYS.getPrivate());
+  }
+
+  private byte[] encryptData(byte[] plainData, String receiver) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
+    byte[] encryptedKey = KDC.getInstance().getKey(this.NAME, receiver);
+    PublicKey key = (PublicKey) Encryptor.getInstance().decryptKey(encryptedKey, this.KDC_COMM_KEY, "RSA", Cipher.PUBLIC_KEY);
+    return Encryptor.getInstance().encryptDecryptData(Cipher.ENCRYPT_MODE, plainData, key);
   }
 
   /**
@@ -179,10 +208,8 @@ public class CLA extends AbstractServer {
           data = nextInt;
         }
 
-        if (!validationTickets.hasNext()) {
-          data = data.substring(0, data.length() - 1);
-          //clientManager.sendRequest(VotingDatagram.ACTION_TYPE.SEND_VALIDATION_LIST.toString(), null, data);
-        }
+        if (!validationTickets.hasNext())
+          data = data.substring(0, data.length() - 1); //clientManager.sendRequest(VotingDatagram.ACTION_TYPE.SEND_VALIDATION_LIST.toString(), null, data);
       }
     }
   }

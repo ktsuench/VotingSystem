@@ -63,7 +63,7 @@ public class Connection implements Runnable {
     this.MAX_BUFFER_SIZE = maxBufferSize < MINIMUM_BUFFER_SIZE ? DEFAULT_MAX_BUFFER_SIZE : maxBufferSize;
   }
 
-    public Connection(String name, ServerConnectionManager manager, AbstractServer server) {
+  public Connection(String name, ServerConnectionManager manager, AbstractServer server) {
     this(name, manager, server, -1);
   }
 
@@ -114,16 +114,14 @@ public class Connection implements Runnable {
         // retrieve datagram from byte[]
         data = Datagram.fromBytes(buffer.array());
 
-        if (data.getReceiver().equals(ServerConnectionManager.SERVER_NAME)) {
-          if (data.getType() == Datagram.DATA_TYPE.UPDATE_ID)
-            // TODO shouldn't be using the sender name here, should be using the data!
-            MANAGER.updateChannelId(name, data.getSender());
-          else
+        if (data.getReceiver().equals(ServerConnectionManager.SERVER_NAME))
+          if (data.getType() == Datagram.DATA_TYPE.UPDATE_ID) {
+            SERVER.updateConnectionName(name, data);
+          } else
             SERVER.handleDatagram(data);
-        } else {
+        else
           // add to queue
           MANAGER.addDatagramToQueue(data.getReceiver(), data);
-        }
       } else if (this.getTaskType() == TASK_TYPE.WRITE) {
         list = MANAGER.getDatagrams(this.name);
 

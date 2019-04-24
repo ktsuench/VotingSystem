@@ -23,16 +23,23 @@
  */
 package com.hkkt.CentralTabulationFacility;
 
+import com.hkkt.CentralLegitimizationAgency.CLA;
 import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
+import com.hkkt.communication.KDC;
 import com.hkkt.communication.ServerConnectionManager;
+import com.hkkt.util.Encryptor;
 import com.hkkt.votingsystem.AbstractServer;
 import com.hkkt.votingsystem.VotingDatagram;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
+import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -41,6 +48,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
 
 /**
  *
@@ -48,12 +60,14 @@ import java.util.logging.Logger;
  */
 public class CTF extends AbstractServer {
   private final ConcurrentHashMap<Integer, Integer> CROSSED_OFF;
+  private final KeyPair ENCRYPTION_KEYS;
+  private final SecretKey KDC_COMM_KEY;
   private final String NAME;
   private final int NUM_VOTERS;
   private final ServerConnectionManager SERVER_MANAGER;
+  private final List<Runnable> TASKS;
   private final List<Integer> VALIDATION_TICKETS;
   private final ConcurrentHashMap<String, List<Integer>> VOTE_RESULTS;
-  private final List<Runnable> TASKS;
   private ClientConnectionManager clientManager;
   private boolean publishingOutcome = false;
 
@@ -66,12 +80,20 @@ public class CTF extends AbstractServer {
    * @param ballotOptions
    * @throws ChannelSelectorCannotStartException
    * @throws IOException
+   * @throws java.security.NoSuchAlgorithmException
+   * @throws javax.crypto.NoSuchPaddingException
+   * @throws java.security.InvalidKeyException
+   * @throws java.io.UnsupportedEncodingException
+   * @throws javax.crypto.IllegalBlockSizeException
+   * @throws javax.crypto.BadPaddingException
    */
-  public CTF(String name, InetSocketAddress address, int numVoters, ArrayList<String> ballotOptions) throws ChannelSelectorCannotStartException, IOException {
+  public CTF(String name, InetSocketAddress address, int numVoters, ArrayList<String> ballotOptions) throws ChannelSelectorCannotStartException, IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
     this.SERVER_MANAGER = new ServerConnectionManager(address, this);
     this.NAME = name;
     this.NUM_VOTERS = numVoters;
     this.VALIDATION_TICKETS = Collections.synchronizedList(new ArrayList<Integer>());
+    this.ENCRYPTION_KEYS = Encryptor.getInstance().genKeyPair();
+    this.KDC_COMM_KEY = Encryptor.getInstance().registerWithKDC(name, this.ENCRYPTION_KEYS.getPublic());
 
     this.CROSSED_OFF = new ConcurrentHashMap<>();
     this.VOTE_RESULTS = new ConcurrentHashMap<>();
@@ -107,8 +129,9 @@ public class CTF extends AbstractServer {
    * @throws IOException
    * @throws com.hkkt.communication.DatagramMissingSenderReceiverException
    */
-  public void connectToCLA(InetSocketAddress address) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException {
-    this.clientManager = new ClientConnectionManager(this.NAME, address);
+  public void connectToCLA(String name, InetSocketAddress address) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
+    byte[] nameBytes = this.NAME.getBytes(Datagram.STRING_ENCODING);
+    this.clientManager = new ClientConnectionManager(this.NAME, this.encryptData(nameBytes, name), address);
   }
 
   public void crossValNum(int id, int validNum) {
@@ -154,18 +177,15 @@ public class CTF extends AbstractServer {
             String voteReceived = "";//arrInfo[2];
 
             //TODO: remove the val num check after val table is added to ctf
-            if (/*checkValNum(valNumReceived) == true &&*/ CROSSED_OFF.containsValue(valNumReceived) == false)
+            if (/*checkValNum(valNumReceived) == true &&*/CROSSED_OFF.containsValue(valNumReceived) == false)
               //validation number is valid and number is not in crossed off list
-              if (addVoteTally(randIdReceived, voteReceived)) {
-                crossValNum(randIdReceived, valNumReceived);
-                // response = votingDatagram.flip(Boolean.toString(true));
-              } else
-                // response = votingDatagram.flip(Boolean.toString(false));
-            // else
+              if (addVoteTally(randIdReceived, voteReceived))
+                crossValNum(randIdReceived, valNumReceived); // response = votingDatagram.flip(Boolean.toString(true));
+              else // response = votingDatagram.flip(Boolean.toString(false));
+              // else
               // response = votingDatagram.flip(Boolean.toString(false));
-
-            if (CROSSED_OFF.mappingCount() == this.NUM_VOTERS && !publishingOutcome)
-              publishOutcome();
+              if (CROSSED_OFF.mappingCount() == this.NUM_VOTERS && !publishingOutcome)
+                publishOutcome();
             break;
           default:
             String errorMsg = "Unknown request. CTF cannot handle the requested operation.";
@@ -230,9 +250,29 @@ public class CTF extends AbstractServer {
     }
   }
 
+  @Override
+  public void updateConnectionName(String name, Datagram datagram) {
+    try {
+      String newName = new String(this.decryptData(datagram.getData()), Datagram.STRING_ENCODING);
+      this.SERVER_MANAGER.updateChannelId(name, newName);
+    } catch (UnsupportedEncodingException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException ex) {
+      Logger.getLogger(CLA.class.getName()).log(Level.SEVERE, null, ex);
+    }
+  }
+
   public void whenReady(Runnable task) {
     synchronized (this.TASKS) {
       this.TASKS.add(task);
     }
+  }
+
+  private byte[] decryptData(byte[] encryptedData) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
+    return Encryptor.getInstance().encryptDecryptData(Cipher.DECRYPT_MODE, encryptedData, this.ENCRYPTION_KEYS.getPrivate());
+  }
+
+  private byte[] encryptData(byte[] plainData, String receiver) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
+    byte[] encryptedKey = KDC.getInstance().getKey(this.NAME, receiver);
+    PublicKey key = (PublicKey) Encryptor.getInstance().decryptKey(encryptedKey, this.KDC_COMM_KEY, "RSA", Cipher.PUBLIC_KEY);
+    return Encryptor.getInstance().encryptDecryptData(Cipher.ENCRYPT_MODE, plainData, key);
   }
 }

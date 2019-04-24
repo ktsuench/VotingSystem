@@ -32,7 +32,7 @@ import java.util.Objects;
  * @author Kent Tsuenchy
  */
 public class Datagram {
-  public static final int MAX_DATA_LENGTH = 120;
+  public static final int MAX_DATA_LENGTH = 300;
   public static final String STRING_ENCODING = "ISO-8859-1";
   protected static final int MAX_TIMESTAMP_LENGTH = 24;
   protected static final int MAX_TYPE_LENGTH = 15;
@@ -117,7 +117,7 @@ public class Datagram {
     temp += String.format("%-" + MAX_TYPE_LENGTH + "s", this.TYPE.toString());
     temp += String.format("%-" + MAX_TYPE_OTHER_LENGTH + "s", this.TYPE_OTHER);
     temp += String.format("%-" + MAX_TIMESTAMP_LENGTH + "s", this.TIMESTAMP.toString());
-    temp += String.format("%-" + MAX_DATA_LENGTH + "s", new String(this.DATA));
+    temp += String.format("%-" + MAX_DATA_LENGTH + "s", new String(this.DATA, STRING_ENCODING));
 
     return temp.getBytes(STRING_ENCODING);
   }
