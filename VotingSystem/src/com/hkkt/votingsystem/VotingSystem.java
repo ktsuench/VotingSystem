@@ -79,15 +79,18 @@ public class VotingSystem {
     this.TASKS = Collections.synchronizedList(new ArrayList<Runnable>());
 
     this.CTF_FACILITY.whenReady(() -> {
-      System.out.println("Voting begins");
-      System.out.println("Voting system tasks: " + TASKS.size());
-      for (Runnable task : TASKS)
-        task.run();
-      TASKS.clear();
+      System.out.println("System is ready for operations");
+      System.out.println("Voting begins with " + VOTERS.size() + " voters");
+
+      TASKS.size(); // catalyst for running tasks...?
+      synchronized (TASKS) {
+        for (Runnable task : TASKS)
+          task.run();
+        TASKS.clear();
+      }
     });
 
     this.TASK_HANDLER = new TaskHandler();
-    System.out.println("System is ready for operations");
   }
 
   public Future<Voter> addVoter(String name) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
@@ -136,7 +139,7 @@ public class VotingSystem {
     InetSocketAddress claAddress = new InetSocketAddress("localhost", 5000);
     InetSocketAddress ctfAddress = new InetSocketAddress("localhost", 6000);
     ArrayList<String> ballotOptions = new ArrayList<>();
-    int maxVoters = 100;
+    int maxVoters = 50;
 
     ballotOptions.add("HITLER");
     ballotOptions.add("STALIN");

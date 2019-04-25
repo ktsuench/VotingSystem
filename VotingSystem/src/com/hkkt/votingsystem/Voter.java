@@ -102,6 +102,10 @@ public class Voter {
           switch (action) {
             case REQUEST_VALIDATION_NUM:
               String decryptedData = new String(decryptData(this.data.getData()), Datagram.STRING_ENCODING);
+
+              System.out.println("Received encrypted validation number from CLA for " + ID + ":\n" + new String(this.data.getData(), Datagram.STRING_ENCODING));
+              System.out.println(ID + " decrypted validation number: " + decryptedData);
+
               validationNum = Integer.parseInt(decryptedData);
               CLA_CONN.cleanup();
               break;
@@ -229,6 +233,9 @@ public class Voter {
   public void submitVote(String vote) throws DatagramMissingSenderReceiverException, UnsupportedEncodingException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
     String data = this.VOTING_ID + " " + this.validationNum + " " + vote;
     byte[] encryptedData = this.encryptData(data.getBytes(Datagram.STRING_ENCODING), this.CTF_NAME);
+
+    System.out.println(this.ID + " submitting vote to CTF with data as:\n" + data + "\nand encrypted data as:\n" + new String(encryptedData, Datagram.STRING_ENCODING));
+
     this.CTF_CONN.sendRequest(VotingDatagram.ACTION_TYPE.SUBMIT_VOTE.toString(), null, encryptedData);
   }
 
@@ -238,6 +245,9 @@ public class Voter {
 
   public void requestForValidationNum() throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException, DatagramMissingSenderReceiverException {
     byte[] encryptedId = this.encryptData(this.ID.getBytes(Datagram.STRING_ENCODING), this.CLA_NAME);
+
+    System.out.println(this.ID + " sending request to CLA for validation number with data encrypted:\n" + new String(encryptedId, Datagram.STRING_ENCODING));
+
     this.CLA_CONN.sendRequest(VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString(), null, encryptedId);
   }
 

@@ -159,7 +159,7 @@ public class CTF extends AbstractServer {
             decryptedData = new String(decryptData(votingDatagram.getData()), Datagram.STRING_ENCODING);
             String[] ids = decryptedData.split("\\s+");
 
-            System.out.println(decryptedData);
+            System.out.println("CTF received batch of validation numbers from CLA encrypted as:\n" + new String(votingDatagram.getData(), Datagram.STRING_ENCODING) + "\ndecrypted as:\n" + decryptedData);
 
             synchronized (this.VALIDATION_TICKETS) {
               for (String id : ids)
@@ -177,6 +177,8 @@ public class CTF extends AbstractServer {
             break;
           case SUBMIT_VOTE:
             decryptedData = new String(decryptData(votingDatagram.getData()), Datagram.STRING_ENCODING);
+
+            System.out.println("CTF received vote from " + votingDatagram.getSender() + " with data encrypted as:\n" + new String(votingDatagram.getData(), Datagram.STRING_ENCODING) + "\ndecrypted as:\n" + decryptedData);
 
             String[] arrInfo = decryptedData.split("\\s+", 3);
             int randIdReceived = Integer.parseInt(arrInfo[0]);

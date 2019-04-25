@@ -131,6 +131,12 @@ public class CLA extends AbstractServer {
             String decryptedData = new String(decryptData(votingDatagram.getData()), Datagram.STRING_ENCODING);
             dataToEncrypt = Integer.toString(this.generateValidationTicket(decryptedData)).getBytes(Datagram.STRING_ENCODING);
             data = encryptData(dataToEncrypt, votingDatagram.getSender());
+
+            System.out.println("CLA recevied request for validation number with encrypted data from " + votingDatagram.getSender() + ":\n" + new String(votingDatagram.getData(), Datagram.STRING_ENCODING));
+            System.out.println("CLA " + votingDatagram.getSender() + " decrypted validation number request:\n" + decryptedData);
+            System.out.println("CLA " + votingDatagram.getSender() + " validation number request:" + new String(dataToEncrypt, Datagram.STRING_ENCODING));
+            System.out.println("CLA " + votingDatagram.getSender() + " encrypted validation number request:\n" + new String(data, Datagram.STRING_ENCODING));
+
             response = votingDatagram.flip(data);
             this.sendValidationTicketListToCTF();
             break;
@@ -214,14 +220,20 @@ public class CLA extends AbstractServer {
         else {
           list = list.substring(0, list.length() - 1);
           data = this.encryptData(list.getBytes(Datagram.STRING_ENCODING), this.ctfName);
+
+          System.out.println("CLA sending batch of validation numbers to CTF:\n" + list + "\nand encryped as:\n" + new String(data, Datagram.STRING_ENCODING));
+
           clientManager.sendRequest(VotingDatagram.ACTION_TYPE.SEND_VALIDATION_LIST.toString(), null, data);
           list = nextInt;
+
         }
 
         if (!validationTickets.hasNext()) {
           list = list.substring(0, list.length() - 1);
           data = this.encryptData(list.getBytes(Datagram.STRING_ENCODING), this.ctfName);
           clientManager.sendRequest(VotingDatagram.ACTION_TYPE.SEND_VALIDATION_LIST.toString(), null, data);
+
+          System.out.println("CLA sending batch of validation numbers to CTF:\n" + list + "\nand encryped as:\n" + new String(data, Datagram.STRING_ENCODING));
         }
       }
     }
