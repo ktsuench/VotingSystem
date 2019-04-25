@@ -185,8 +185,7 @@ public class CTF extends AbstractServer {
             int valNumReceived = Integer.parseInt(arrInfo[1]);
             String voteReceived = arrInfo[2];
 
-            //TODO: remove the val num check after val table is added to ctf
-            if (/*checkValNum(valNumReceived) == true &&*/CROSSED_OFF.containsValue(valNumReceived) == false)
+            if (checkValNum(valNumReceived) == true && CROSSED_OFF.containsValue(valNumReceived) == false)
               //validation number is valid and number is not in crossed off list
               if (addVoteTally(randIdReceived, voteReceived)) {
                 crossValNum(randIdReceived, valNumReceived);
