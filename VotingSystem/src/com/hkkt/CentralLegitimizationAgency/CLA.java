@@ -27,9 +27,9 @@ import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
+import com.hkkt.communication.Encryptor;
 import com.hkkt.communication.KDC;
 import com.hkkt.communication.ServerConnectionManager;
-import com.hkkt.util.Encryptor;
 import com.hkkt.votingsystem.AbstractServer;
 import com.hkkt.votingsystem.VotingDatagram;
 import java.io.IOException;
@@ -39,6 +39,7 @@ import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -62,6 +63,7 @@ public class CLA extends AbstractServer {
   private final int NUM_VOTERS;
   private final ServerConnectionManager SERVER_MANAGER;
   private final ConcurrentHashMap<String, Integer> VALIDATION_TICKETS;
+  private String ctfName;
   private ClientConnectionManager clientManager;
   private boolean sentValidationTicketsToCTF = false;
 
@@ -107,6 +109,7 @@ public class CLA extends AbstractServer {
    */
   public void connectToCTF(String name, InetSocketAddress address) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
     byte[] nameBytes = this.NAME.getBytes(Datagram.STRING_ENCODING);
+    this.ctfName = name;
     this.clientManager = new ClientConnectionManager(this.NAME, this.encryptData(nameBytes, name), address);
   }
 
@@ -160,7 +163,11 @@ public class CLA extends AbstractServer {
   }
 
   private byte[] decryptData(byte[] encryptedData) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
-    return Encryptor.getInstance().encryptDecryptData(Cipher.DECRYPT_MODE, encryptedData, this.ENCRYPTION_KEYS.getPrivate());
+    // length of encrypted data is 256, but in datagram the data (bytes) gets converted to string and length limit
+    // is applied to string instead of bytes, string limit is 300 currently (trimming causes the byte data to be
+    // malformed since some of those bytes at start/end may look like spaces in string format)
+    byte[] data = Arrays.copyOf(encryptedData, 256);
+    return Encryptor.getInstance().encryptDecryptData(Cipher.DECRYPT_MODE, data, this.ENCRYPTION_KEYS.getPrivate());
   }
 
   private byte[] encryptData(byte[] plainData, String receiver) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
@@ -188,8 +195,9 @@ public class CLA extends AbstractServer {
     return alreadyRegistered ? -1 : validationTicket;
   }
 
-  private void sendValidationTicketListToCTF() throws UnsupportedEncodingException, DatagramMissingSenderReceiverException {
-    String data = "", nextInt;
+  private void sendValidationTicketListToCTF() throws UnsupportedEncodingException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+    String list = "", nextInt;
+    byte[] data;
     Iterator<Integer> validationTickets;
 
     if (!this.sentValidationTicketsToCTF && this.VALIDATION_TICKETS.mappingCount() == this.NUM_VOTERS) {
@@ -200,16 +208,21 @@ public class CLA extends AbstractServer {
       while (validationTickets.hasNext()) {
         nextInt = validationTickets.next() + VALIDATION_TICKET_DELIMETER;
 
-        if (data.getBytes(Datagram.STRING_ENCODING).length + nextInt.getBytes(Datagram.STRING_ENCODING).length < Datagram.MAX_DATA_LENGTH)
-          data += nextInt;
+        // encrypted data length has to be less then 256 (some bytes used for header)
+        if (list.getBytes(Datagram.STRING_ENCODING).length + nextInt.getBytes(Datagram.STRING_ENCODING).length < 245)
+          list += nextInt;
         else {
-          data = data.substring(0, data.length() - 1);
-          //clientManager.sendRequest(VotingDatagram.ACTION_TYPE.SEND_VALIDATION_LIST.toString(), null, data);
-          data = nextInt;
+          list = list.substring(0, list.length() - 1);
+          data = this.encryptData(list.getBytes(Datagram.STRING_ENCODING), this.ctfName);
+          clientManager.sendRequest(VotingDatagram.ACTION_TYPE.SEND_VALIDATION_LIST.toString(), null, data);
+          list = nextInt;
         }
 
-        if (!validationTickets.hasNext())
-          data = data.substring(0, data.length() - 1); //clientManager.sendRequest(VotingDatagram.ACTION_TYPE.SEND_VALIDATION_LIST.toString(), null, data);
+        if (!validationTickets.hasNext()) {
+          list = list.substring(0, list.length() - 1);
+          data = this.encryptData(list.getBytes(Datagram.STRING_ENCODING), this.ctfName);
+          clientManager.sendRequest(VotingDatagram.ACTION_TYPE.SEND_VALIDATION_LIST.toString(), null, data);
+        }
       }
     }
   }

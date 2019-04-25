@@ -28,9 +28,9 @@ import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
+import com.hkkt.communication.Encryptor;
 import com.hkkt.communication.KDC;
 import com.hkkt.communication.ServerConnectionManager;
-import com.hkkt.util.Encryptor;
 import com.hkkt.votingsystem.AbstractServer;
 import com.hkkt.votingsystem.VotingDatagram;
 import java.io.IOException;
@@ -41,6 +41,7 @@ import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -150,15 +151,18 @@ public class CTF extends AbstractServer {
       if (VotingDatagram.isVotingSystemDatagram(datagram)) {
         VotingDatagram votingDatagram = new VotingDatagram(datagram);
         Datagram response = null;
+        byte[] dataToEncrypt, data;
+        String decryptedData;
 
         switch (votingDatagram.getOperationType()) {
           case SEND_VALIDATION_LIST:
-            System.out.println(votingDatagram.getData());
+            decryptedData = new String(decryptData(votingDatagram.getData()), Datagram.STRING_ENCODING);
+            String[] ids = decryptedData.split("\\s+");
 
-            String[] data = {""};//votingDatagram.getData().split("\\s+");
+            System.out.println(decryptedData);
 
             synchronized (this.VALIDATION_TICKETS) {
-              for (String id : data)
+              for (String id : ids)
                 if (!this.VALIDATION_TICKETS.contains(Integer.parseInt(id)))
                   this.VALIDATION_TICKETS.add(Integer.parseInt(id));
 
@@ -168,35 +172,51 @@ public class CTF extends AbstractServer {
                 this.TASKS.clear();
               }
             }
+
             // response = votingDatagram.flip(data);
             break;
           case SUBMIT_VOTE:
-            //String[] arrInfo = votingDatagram.getData().split("\\s+", 3);
-            int randIdReceived = 1;//Integer.parseInt(arrInfo[0]);
-            int valNumReceived = 1;//Integer.parseInt(arrInfo[1]);
-            String voteReceived = "";//arrInfo[2];
+            decryptedData = new String(decryptData(votingDatagram.getData()), Datagram.STRING_ENCODING);
+
+            String[] arrInfo = decryptedData.split("\\s+", 3);
+            int randIdReceived = Integer.parseInt(arrInfo[0]);
+            int valNumReceived = Integer.parseInt(arrInfo[1]);
+            String voteReceived = arrInfo[2];
 
             //TODO: remove the val num check after val table is added to ctf
             if (/*checkValNum(valNumReceived) == true &&*/CROSSED_OFF.containsValue(valNumReceived) == false)
               //validation number is valid and number is not in crossed off list
-              if (addVoteTally(randIdReceived, voteReceived))
-                crossValNum(randIdReceived, valNumReceived); // response = votingDatagram.flip(Boolean.toString(true));
-              else // response = votingDatagram.flip(Boolean.toString(false));
-              // else
-              // response = votingDatagram.flip(Boolean.toString(false));
-              if (CROSSED_OFF.mappingCount() == this.NUM_VOTERS && !publishingOutcome)
-                publishOutcome();
+              if (addVoteTally(randIdReceived, voteReceived)) {
+                crossValNum(randIdReceived, valNumReceived);
+
+                dataToEncrypt = Boolean.toString(true).getBytes(Datagram.STRING_ENCODING);
+                data = encryptData(dataToEncrypt, votingDatagram.getSender());
+                response = votingDatagram.flip(data);
+              } else {
+                dataToEncrypt = Boolean.toString(false).getBytes(Datagram.STRING_ENCODING);
+                data = encryptData(dataToEncrypt, votingDatagram.getSender());
+                response = votingDatagram.flip(data);
+              }
+            else {
+              dataToEncrypt = Boolean.toString(false).getBytes(Datagram.STRING_ENCODING);
+              data = encryptData(dataToEncrypt, votingDatagram.getSender());
+              response = votingDatagram.flip(data);
+            }
+
+            if (CROSSED_OFF.mappingCount() == this.NUM_VOTERS && !publishingOutcome)
+              publishOutcome();
             break;
           default:
-            String errorMsg = "Unknown request. CTF cannot handle the requested operation.";
-            // response = datagram.flip(errorMsg, Datagram.DATA_TYPE.ERROR);
+            dataToEncrypt = "Unknown request. CTF cannot handle the requested operation.".getBytes(Datagram.STRING_ENCODING);
+            data = encryptData(dataToEncrypt, votingDatagram.getSender());
+            response = datagram.flip(data, Datagram.DATA_TYPE.ERROR);
             break;
         }
 
         if (response != null)
           this.SERVER_MANAGER.addDatagramToQueue(response.getReceiver(), response);
       }
-    } catch (UnsupportedEncodingException | DatagramMissingSenderReceiverException ex) {
+    } catch (UnsupportedEncodingException | DatagramMissingSenderReceiverException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException ex) {
       Logger.getLogger(CTF.class.getName()).log(Level.SEVERE, null, ex);
     }
   }
@@ -267,7 +287,11 @@ public class CTF extends AbstractServer {
   }
 
   private byte[] decryptData(byte[] encryptedData) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
-    return Encryptor.getInstance().encryptDecryptData(Cipher.DECRYPT_MODE, encryptedData, this.ENCRYPTION_KEYS.getPrivate());
+    // length of encrypted data is 256, but in datagram the data (bytes) gets converted to string and length limit
+    // is applied to string instead of bytes, string limit is 300 currently (trimming causes the byte data to be
+    // malformed since some of those bytes at start/end may look like spaces in string format)
+    byte[] data = Arrays.copyOf(encryptedData, 256);
+    return Encryptor.getInstance().encryptDecryptData(Cipher.DECRYPT_MODE, data, this.ENCRYPTION_KEYS.getPrivate());
   }
 
   private byte[] encryptData(byte[] plainData, String receiver) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {

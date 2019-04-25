@@ -115,9 +115,9 @@ public class Connection implements Runnable {
         data = Datagram.fromBytes(buffer.array());
 
         if (data.getReceiver().equals(ServerConnectionManager.SERVER_NAME))
-          if (data.getType() == Datagram.DATA_TYPE.UPDATE_ID) {
+          if (data.getType() == Datagram.DATA_TYPE.UPDATE_ID)
             SERVER.updateConnectionName(name, data);
-          } else
+          else
             SERVER.handleDatagram(data);
         else
           // add to queue

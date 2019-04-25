@@ -27,8 +27,8 @@ import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
+import com.hkkt.communication.Encryptor;
 import com.hkkt.communication.KDC;
-import com.hkkt.util.Encryptor;
 import com.hkkt.util.Hook;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -38,6 +38,9 @@ import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -64,7 +67,7 @@ public class Voter {
   private final KeyPair ENCRYPTION_KEYS;
   private final String ID;
   private final SecretKey KDC_COMM_KEY;
-  private final ConcurrentHashMap<VotingDatagram.ACTION_TYPE, ArrayList<Runnable>> TASKS;
+  private final ConcurrentHashMap<VotingDatagram.ACTION_TYPE, List<Runnable>> TASKS;
   private final int VOTING_ID;
   private boolean requestInProgress;
   private int validationNum;
@@ -182,8 +185,6 @@ public class Voter {
     this.CTF_CONN.addHook(CTF_HOOK);
 
     this.requestInProgress = true;
-    encryptedId = this.encryptData(id.getBytes(Datagram.STRING_ENCODING), claName);
-    this.CLA_CONN.sendRequest(VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString(), null, encryptedId);
   }
 
   public void cleanup() {
@@ -235,12 +236,21 @@ public class Voter {
     this.submitVote(Integer.toString(vote));
   }
 
+  public void requestForValidationNum() throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException, DatagramMissingSenderReceiverException {
+    byte[] encryptedId = this.encryptData(this.ID.getBytes(Datagram.STRING_ENCODING), this.CLA_NAME);
+    this.CLA_CONN.sendRequest(VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM.toString(), null, encryptedId);
+  }
+
   public void whenFree(Runnable task, VotingDatagram.ACTION_TYPE action) {
-    this.TASKS.computeIfAbsent(action, key -> new ArrayList<>()).add(task);
+    this.TASKS.computeIfAbsent(action, key -> Collections.synchronizedList(new ArrayList<>())).add(task);
   }
 
   private byte[] decryptData(byte[] encryptedData) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
-    return Encryptor.getInstance().encryptDecryptData(Cipher.DECRYPT_MODE, encryptedData, this.ENCRYPTION_KEYS.getPrivate());
+    // length of encrypted data is 256, but in datagram the data (bytes) gets converted to string and length limit
+    // is applied to string instead of bytes, string limit is 300 currently (trimming causes the byte data to be
+    // malformed since some of those bytes at start/end may look like spaces in string format)
+    byte[] data = Arrays.copyOf(encryptedData, 256);
+    return Encryptor.getInstance().encryptDecryptData(Cipher.DECRYPT_MODE, data, this.ENCRYPTION_KEYS.getPrivate());
   }
 
   private byte[] encryptData(byte[] plainData, String receiver) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {

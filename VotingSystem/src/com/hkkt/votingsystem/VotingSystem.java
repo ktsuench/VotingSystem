@@ -27,6 +27,7 @@ import com.hkkt.CentralLegitimizationAgency.CLA;
 import com.hkkt.CentralTabulationFacility.CTF;
 import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
+import com.hkkt.communication.TaskHandler;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
@@ -35,6 +36,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
@@ -56,6 +59,7 @@ public class VotingSystem {
   private final int MAX_VOTERS;
   private final ArrayList<Voter> VOTERS;
   private final List<Runnable> TASKS;
+  private final TaskHandler TASK_HANDLER;
 
   public VotingSystem(int numVoters, ArrayList<String> ballotOptions, InetSocketAddress claAddress, InetSocketAddress ctfAddress) throws ChannelSelectorCannotStartException, IOException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
     this.MAX_VOTERS = numVoters;
@@ -75,20 +79,27 @@ public class VotingSystem {
     this.TASKS = Collections.synchronizedList(new ArrayList<Runnable>());
 
     this.CTF_FACILITY.whenReady(() -> {
+      System.out.println("Voting begins");
       System.out.println("Voting system tasks: " + TASKS.size());
       for (Runnable task : TASKS)
         task.run();
       TASKS.clear();
     });
+
+    this.TASK_HANDLER = new TaskHandler();
+    System.out.println("System is ready for operations");
   }
 
-  public boolean addVoter(String name) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
-    if (this.VOTERS.size() < this.MAX_VOTERS + 1) {
-      this.VOTERS.add(new Voter(name, this.CLA_ADDRESS, this.CTF_ADDRESS, CLA_NAME, CTF_NAME));
-      return true;
-    }
+  public Future<Voter> addVoter(String name) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException {
+    return this.TASK_HANDLER.startTask(() -> {
+      if (this.VOTERS.size() < this.MAX_VOTERS + 1) {
+        Voter voter = new Voter(name, this.CLA_ADDRESS, this.CTF_ADDRESS, CLA_NAME, CTF_NAME);
+        this.VOTERS.add(voter);
 
-    return false;
+        return voter;
+      }
+      return null;
+    });
   }
 
   public ArrayList<String> getBallotOptions() {
@@ -120,12 +131,12 @@ public class VotingSystem {
    * @throws java.io.UnsupportedEncodingException
    * @throws javax.crypto.BadPaddingException
    */
-  public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException, InterruptedException {
+  public static void main(String[] args) throws IOException, ChannelSelectorCannotStartException, DatagramMissingSenderReceiverException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, UnsupportedEncodingException, BadPaddingException, InterruptedException, ExecutionException {
     // TODO code application logic here
     InetSocketAddress claAddress = new InetSocketAddress("localhost", 5000);
     InetSocketAddress ctfAddress = new InetSocketAddress("localhost", 6000);
     ArrayList<String> ballotOptions = new ArrayList<>();
-    int maxVoters = 1;
+    int maxVoters = 100;
 
     ballotOptions.add("HITLER");
     ballotOptions.add("STALIN");
@@ -133,23 +144,29 @@ public class VotingSystem {
     ballotOptions.add("NAPOLEAN");
     ballotOptions.add("JULIUS");
 
+    System.out.println("System is starting up...");
+
     VotingSystem system = new VotingSystem(maxVoters, ballotOptions, claAddress, ctfAddress);
 
-    Thread.sleep(500);
+    System.out.println("System preparing... adding voters to system...");
 
-    for (int i = 0; i < maxVoters; i++)
-      system.addVoter("voter" + i);
+    // assume all voters will be created (i.e. no errors)
+    for (int i = 0; i < maxVoters; i++) {
+      Future<Voter> voter = system.addVoter("voter" + i);
 
-    system.getVoters().forEach(v -> {
-      v.whenFree(() -> {
-        system.whenSystemReady(() -> {
-          try {
-            v.submitVote(ballotOptions.get((int) (Math.random() * ballotOptions.size())));
-          } catch (DatagramMissingSenderReceiverException | UnsupportedEncodingException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException ex) {
-            Logger.getLogger(VotingSystem.class.getName()).log(Level.SEVERE, null, ex);
-          }
-        });
-      }, VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM);
-    });
+      if (voter.get() != null) {
+        Voter v = voter.get();
+        v.whenFree(() -> {
+          system.whenSystemReady(() -> {
+            try {
+              v.submitVote(ballotOptions.get((int) (Math.random() * ballotOptions.size())));
+            } catch (DatagramMissingSenderReceiverException | UnsupportedEncodingException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException ex) {
+              Logger.getLogger(VotingSystem.class.getName()).log(Level.SEVERE, null, ex);
+            }
+          });
+        }, VotingDatagram.ACTION_TYPE.REQUEST_VALIDATION_NUM);
+        v.requestForValidationNum();
+      }
+    }
   }
 }

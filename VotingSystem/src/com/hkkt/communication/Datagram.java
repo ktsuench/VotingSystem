@@ -56,7 +56,7 @@ public class Datagram {
     pad += MAX_TYPE_OTHER_LENGTH;
     timestamp = Instant.parse(temp.substring(pad, pad + MAX_TIMESTAMP_LENGTH).trim());
     pad += MAX_TIMESTAMP_LENGTH;
-    data = temp.substring(pad).trim().getBytes(STRING_ENCODING);
+    data = temp.substring(pad).getBytes(STRING_ENCODING);
 
     return new Datagram(type, otherType, sender, receiver, data, timestamp);
   }

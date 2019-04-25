@@ -52,7 +52,7 @@ public class VotingDatagram extends Datagram {
     pad += MAX_TYPE_OTHER_LENGTH;
     timestamp = Instant.parse(temp.substring(pad, pad + MAX_TIMESTAMP_LENGTH).trim());
     pad += MAX_TIMESTAMP_LENGTH;
-    data = temp.substring(pad).trim().getBytes(STRING_ENCODING);
+    data = temp.substring(pad).getBytes(STRING_ENCODING);
 
     return new VotingDatagram(otherType, sender, receiver, data, timestamp);
   }
@@ -110,7 +110,7 @@ public class VotingDatagram extends Datagram {
     temp += String.format("%-" + MAX_TYPE_LENGTH + "s", this.TYPE.toString());
     temp += String.format("%-" + MAX_TYPE_OTHER_LENGTH + "s", this.OP_TYPE.toString());
     temp += String.format("%-" + MAX_TIMESTAMP_LENGTH + "s", this.TIMESTAMP.toString());
-    temp += String.format("%-" + MAX_DATA_LENGTH + "s", new String(this.DATA));
+    temp += String.format("%-" + MAX_DATA_LENGTH + "s", new String(this.DATA, STRING_ENCODING));
 
     return temp.getBytes(STRING_ENCODING);
   }
