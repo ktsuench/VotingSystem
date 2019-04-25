@@ -21,8 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.hkkt.communication;
+package com.hkkt.util;
 
+import com.hkkt.communication.KDC;
 import com.hkkt.communication.KDC;
 import java.io.UnsupportedEncodingException;
 import java.security.InvalidKeyException;

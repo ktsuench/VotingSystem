@@ -27,7 +27,7 @@ import com.hkkt.communication.ChannelSelectorCannotStartException;
 import com.hkkt.communication.ClientConnectionManager;
 import com.hkkt.communication.Datagram;
 import com.hkkt.communication.DatagramMissingSenderReceiverException;
-import com.hkkt.communication.Encryptor;
+import com.hkkt.util.Encryptor;
 import com.hkkt.communication.KDC;
 import com.hkkt.communication.ServerConnectionManager;
 import com.hkkt.votingsystem.AbstractServer;
